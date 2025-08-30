@@ -60,6 +60,26 @@ export interface CallMetrics {
   conversionRate: number;
 }
 
+export interface Campaign {
+  id: string;
+  tenant_id: string;
+  name: string;
+  agent_id: string;
+  status: 'draft' | 'scheduled' | 'running' | 'paused' | 'completed' | 'failed';
+  custom_message?: string;
+  scheduled_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  total_leads: number;
+  called: number;
+  successful: number;
+  failed: number;
+  lead_ids: string[];
+  batch_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface User {
   id: string;
   tenant_id: string;

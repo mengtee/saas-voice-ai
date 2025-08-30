@@ -304,7 +304,7 @@ export class LeadService extends BaseService {
   /**
    * Create new lead in database
    */
-  private async createLead(lead: Lead): Promise<Lead> {
+  public async createLead(lead: Lead): Promise<Lead> {
     const result = await this.query<Lead>(
       `INSERT INTO leads (tenant_id, assigned_user_id, date, name, phone_number, email, purpose, status, notes) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 

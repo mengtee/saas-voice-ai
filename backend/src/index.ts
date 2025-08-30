@@ -7,8 +7,11 @@ import elevenlabsRoutes from "./routes/elevenlabs";
 import { createAuthRoutes } from "./routes/auth";
 import { createLeadsRoutes } from "./routes/leads";
 import { createStatisticsRoutes } from "./routes/statistics";
+import { createCampaignsRoutes } from "./routes/campaigns";
+import { createAnalyticsRoutes } from "./routes/analytics";
 import { Pool } from "pg";
 import { loadConfig } from "./config";
+import { BatchStatusPoller } from "./services/batchStatusPoller";
 
 dotenv.config();
 
@@ -33,10 +36,14 @@ const main = async () => {
   const authRoutes = createAuthRoutes(pool, config);
   const leadsRoutes = createLeadsRoutes(pool, config);
   const statisticsRoutes = createStatisticsRoutes(pool, config);
+  const campaignsRoutes = createCampaignsRoutes(pool, config);
+  const analyticsRoutes = createAnalyticsRoutes(pool, config);
   
   app.use("/api/auth", authRoutes);
   app.use("/api/leads", leadsRoutes);
   app.use("/api/statistics", statisticsRoutes);
+  app.use("/api/campaigns", campaignsRoutes);
+  app.use("/api/analytics", analyticsRoutes);
   app.use("/api/twilio", twilioRoutes);
   app.use("/api/elevenlabs", elevenlabsRoutes);
 
@@ -53,6 +60,17 @@ const main = async () => {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${config.env || "development"}`);
+    
+    // Start batch status polling for campaigns
+    const poller = new BatchStatusPoller(pool);
+    poller.startPolling(45000); // Poll every 45 seconds
+    
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+      console.log('Received SIGTERM, stopping batch poller...');
+      poller.stopPolling();
+      process.exit(0);
+    });
   });
 };
 

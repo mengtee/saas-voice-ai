@@ -310,7 +310,7 @@ export function RealTimeMonitor() {
                         </div>
                         <div>
                           <p className="font-medium text-muted-foreground">Start Time:</p>
-                          <p>{new Date(call.startTime).toLocaleTimeString()}</p>
+                          <p>{call.startTime ? new Date(call.startTime).toISOString().slice(11, 19) : 'Unknown'}</p>
                         </div>
                         {call.campaignId && (
                           <div>

@@ -5,14 +5,16 @@ import { AuthGuard } from '@/components/AuthGuard';
 import { MainLayout } from '@/components/Layout/MainLayout';
 import { useAppStore } from '@/store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { SidebarAwareSheet } from '@/components/ui/sidebar-aware-sheet';
 import { Users, Phone, Calendar, MessageCircle, TrendingUp } from 'lucide-react';
 import { LeadUpload } from '@/components/LeadUpload';
+import { BulkCallingLauncher } from '@/components/BulkCallingLauncher';
 import { apiClient } from '@/services/api';
 
 export default function DashboardPage() {
   const { setCurrentPage } = useAppStore();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [bulkCallingOpen, setBulkCallingOpen] = useState(false);
   const [stats, setStats] = useState({
     totalLeads: 0,
     activeCalls: 0,
@@ -189,31 +191,32 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Sheet open={uploadDialogOpen} onOpenChange={(open: boolean) => {
-                setUploadDialogOpen(open);
-                if (!open) resetUploadDialog();
-              }}>
-                <SheetTrigger asChild>
-                  <div className="p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
-                    <Users className="h-6 w-6 mb-2 text-primary" />
-                    <h3 className="font-semibold">Upload New Leads</h3>
-                    <p className="text-sm text-muted-foreground">Import leads from CSV or Excel</p>
-                  </div>
-                </SheetTrigger>
-                <SheetContent>
-                  <SheetHeader>
-                    <SheetTitle>Upload Leads</SheetTitle>
-                    <SheetDescription>
-                      Import leads from CSV or Excel files. Download the template to see the required format.
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="mt-6">
-                    <LeadUpload />
-                  </div>
-                </SheetContent>
-              </Sheet>
+              <div 
+                className="p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => setUploadDialogOpen(true)}
+              >
+                <Users className="h-6 w-6 mb-2 text-primary" />
+                <h3 className="font-semibold">Upload New Leads</h3>
+                <p className="text-sm text-muted-foreground">Import leads from CSV or Excel</p>
+              </div>
 
-              <div className="p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
+              <SidebarAwareSheet
+                open={uploadDialogOpen}
+                onOpenChange={(open: boolean) => {
+                  setUploadDialogOpen(open);
+                  if (!open) resetUploadDialog();
+                }}
+                title="Upload Leads"
+                description="Import leads from CSV or Excel files. Download the template to see the required format."
+                maxWidth="max-w-2xl"
+              >
+                <LeadUpload />
+              </SidebarAwareSheet>
+
+              <div 
+                className="p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => setBulkCallingOpen(true)}
+              >
                 <Phone className="h-6 w-6 mb-2 text-primary" />
                 <h3 className="font-semibold">Start Bulk Calling</h3>
                 <p className="text-sm text-muted-foreground">Begin calling selected leads</p>
@@ -226,6 +229,12 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Bulk Calling Launcher */}
+        <BulkCallingLauncher 
+          isOpen={bulkCallingOpen}
+          onOpenChange={setBulkCallingOpen}
+        />
       </div>
       </MainLayout>
     </AuthGuard>

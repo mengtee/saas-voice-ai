@@ -11,6 +11,8 @@ import { apiClient } from '@/services/api';
 import { ApiResponse, PaginatedResponse } from '@/types';
 import { LeadUpload } from '@/components/LeadUpload';
 import { LeadsTable } from '@/components/LeadsTable';
+import { SidebarAwareSheet } from '@/components/ui/sidebar-aware-sheet';
+import { AddLead } from '@/components/AddLead';
 
 interface LeadStats {
   totalLeads: number;
@@ -39,6 +41,7 @@ export default function LeadsPage() {
     conversionRate: 0
   });
   const [loading, setLoading] = useState(true);
+  const [addLeadOpen, setAddLeadOpen] = useState(false);
 
   useEffect(() => {
     setCurrentPage('leads');
@@ -84,7 +87,7 @@ export default function LeadsPage() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => setAddLeadOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Lead
               </Button>
@@ -253,6 +256,23 @@ export default function LeadsPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Add Lead Modal */}
+        <SidebarAwareSheet
+          open={addLeadOpen}
+          onOpenChange={setAddLeadOpen}
+          title="Add New Lead"
+          description="Enter lead information to add them to your database"
+          maxWidth="max-w-2xl"
+        >
+          <AddLead 
+            onSuccess={() => {
+              fetchLeadsData(); // Refresh the leads data
+              setAddLeadOpen(false); // Close the modal
+            }}
+            onCancel={() => setAddLeadOpen(false)}
+          />
+        </SidebarAwareSheet>
       </MainLayout>
     </AuthGuard>
   );

@@ -5,9 +5,9 @@ import { MainLayout } from '@/components/Layout/MainLayout';
 import { useAppStore } from '@/store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Phone, Play, Pause, Square, Clock, TrendingUp } from 'lucide-react';
+import { Phone, Pause, Square, Clock, TrendingUp } from 'lucide-react';
 import { apiClient } from '@/services/api';
-import { BatchCalling } from '@/components/BatchCalling';
+import { BulkCallingLauncher } from '@/components/BulkCallingLauncher';
 import { RealTimeMonitor } from '@/components/RealTimeMonitor';
 import { WebhookProcessor } from '@/components/WebhookProcessor';
 import { CallRecording } from '@/components/CallRecording';
@@ -35,6 +35,7 @@ export default function CallsPage() {
     endTime: string;
   }>>([]);
   const [loading, setLoading] = useState(true);
+  const [bulkCallingOpen, setBulkCallingOpen] = useState(false);
 
   useEffect(() => {
     setCurrentPage('calls');
@@ -86,9 +87,9 @@ export default function CallsPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button>
-              <Play className="mr-2 h-4 w-4" />
-              Start Calling
+            <Button onClick={() => setBulkCallingOpen(true)}>
+              <Phone className="mr-2 h-4 w-4" />
+              Create Campaign
             </Button>
             <Button variant="outline">
               <Pause className="mr-2 h-4 w-4" />
@@ -313,26 +314,15 @@ export default function CallsPage() {
           </CardContent>
         </Card>
 
-        {/* Real-Time Monitoring */}
         <RealTimeMonitor />
-
-        {/* Batch Calling */}
-        <BatchCalling 
-          onCampaignStart={(campaignId) => {
-            console.log('Campaign started:', campaignId);
-            fetchCallCenterData();
-          }}
-          onCampaignComplete={(campaignId, results) => {
-            console.log('Campaign completed:', campaignId, results);
-            fetchCallCenterData();
-          }}
+        <WebhookProcessor /> 
+        <CallRecording /> 
+      
+        {/* Put BulkCallingLauncher back so the button works */}
+        <BulkCallingLauncher 
+          isOpen={bulkCallingOpen}
+          onOpenChange={setBulkCallingOpen}
         />
-
-        {/* Post-Call Webhook Processing */}
-        <WebhookProcessor />
-
-        {/* Call Recordings & Transcripts */}
-        <CallRecording />
       </div>
     </MainLayout>
   );

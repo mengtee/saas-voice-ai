@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import Image from 'next/image';
-import { cn } from '@/lib/utils';
-import { useAppStore } from '@/store';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import Image from "next/image";
+import { cn } from "@/lib/utils";
+import { useAppStore } from "@/store";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
   LayoutDashboard,
   Users,
@@ -14,39 +14,45 @@ import {
   Calendar,
   MessageCircle,
   Settings,
+  BarChart3,
   ChevronLeft,
   ChevronRight,
-} from 'lucide-react';
+} from "lucide-react";
 
 const navigation = [
   {
-    name: 'Dashboard',
-    href: '/dashboard',
+    name: "Dashboard",
+    href: "/dashboard",
     icon: LayoutDashboard,
   },
   {
-    name: 'Leads',
-    href: '/leads',
+    name: "Leads",
+    href: "/leads",
     icon: Users,
   },
   {
-    name: 'Calls',
-    href: '/calls',
+    name: "Calls",
+    href: "/calls",
     icon: Phone,
   },
   {
-    name: 'Calendar',
-    href: '/calendar',
-    icon: Calendar,
-  },
-  {
-    name: 'WhatsApp',
-    href: '/whatsapp',
+    name: "WhatsApp",
+    href: "/whatsapp",
     icon: MessageCircle,
   },
   {
-    name: 'Settings',
-    href: '/settings',
+    name: "Calendar",
+    href: "/calendar",
+    icon: Calendar,
+  },
+  {
+    name: "Analytics",
+    href: "/analytics",
+    icon: BarChart3,
+  },
+  {
+    name: "Settings",
+    href: "/settings",
     icon: Settings,
   },
 ];
@@ -56,49 +62,55 @@ export function Sidebar() {
   const { sidebarOpen, setSidebarOpen, user } = useAppStore();
 
   const handleToggle = () => {
-    console.log('Sidebar toggle clicked, current state:', sidebarOpen);
+    console.log("Sidebar toggle clicked, current state:", sidebarOpen);
     setSidebarOpen(!sidebarOpen);
   };
 
   const getInitials = (name?: string) => {
-    if (!name) return 'U';
+    if (!name) return "U";
     return name
-      .split(' ')
-      .map(word => word.charAt(0))
-      .join('')
+      .split(" ")
+      .map((word) => word.charAt(0))
+      .join("")
       .toUpperCase()
       .slice(0, 2);
   };
 
   const getDisplayName = (name?: string) => {
-    if (!name) return 'User';
-    return name.length > 20 ? name.slice(0, 20) + '...' : name;
+    if (!name) return "User";
+    return name.length > 20 ? name.slice(0, 20) + "..." : name;
   };
 
   return (
-    <div className={cn(
-      'fixed left-0 top-0 z-40 flex h-screen flex-col border-r bg-background transition-all duration-300',
-      sidebarOpen ? 'w-64' : 'w-16'
-    )}>
+    <div
+      className={cn(
+        "fixed left-0 top-0 z-40 flex h-screen flex-col border-r bg-background transition-all duration-300",
+        sidebarOpen ? "w-64" : "w-16"
+      )}
+    >
       {/* Header */}
-      <div className={cn(
-        "flex items-center p-4 transition-all duration-300",
-        sidebarOpen ? "justify-between" : "justify-center"
-      )}>
-        <div className={cn(
-          'flex items-center gap-2 transition-opacity duration-300',
-          sidebarOpen ? 'opacity-100' : 'opacity-0 w-0'
-        )}>
-          <Image 
-            src="/image.png" 
-            alt="Funnel AI Logo" 
-            width={32} 
-            height={32} 
+      <div
+        className={cn(
+          "flex items-center p-4 transition-all duration-300",
+          sidebarOpen ? "justify-between" : "justify-center"
+        )}
+      >
+        <div
+          className={cn(
+            "flex items-center gap-2 transition-opacity duration-300",
+            sidebarOpen ? "opacity-100" : "opacity-0 w-0"
+          )}
+        >
+          <Image
+            src="/image.png"
+            alt="Funnel AI Logo"
+            width={32}
+            height={32}
             className="rounded"
           />
           <span className="font-semibold text-lg">Funnel AI</span>
         </div>
-        
+
         <Button
           variant="ghost"
           size="sm"
@@ -122,20 +134,18 @@ export function Sidebar() {
       <nav className="flex-1 space-y-1 p-2">
         {navigation.map((item) => {
           const isActive = pathname === item.href;
-          
+
           return (
             <Link key={item.name} href={item.href}>
               <Button
-                variant={isActive ? 'secondary' : 'ghost'}
+                variant={isActive ? "secondary" : "ghost"}
                 className={cn(
-                  'w-full justify-start gap-3 h-11',
-                  !sidebarOpen && 'px-2 justify-center',
+                  "w-full justify-start gap-3 h-11",
+                  !sidebarOpen && "px-2 justify-center"
                 )}
               >
                 <item.icon className="h-5 w-5 flex-shrink-0" />
-                {sidebarOpen && (
-                  <span className="truncate">{item.name}</span>
-                )}
+                {sidebarOpen && <span className="truncate">{item.name}</span>}
               </Button>
             </Link>
           );
@@ -147,17 +157,19 @@ export function Sidebar() {
       {/* User Section */}
       <div className="p-4">
         <Link href="/settings" className="block">
-          <div className={cn(
-            'flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50 cursor-pointer',
-            !sidebarOpen && 'justify-center p-1'
-          )}>
+          <div
+            className={cn(
+              "flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50 cursor-pointer",
+              !sidebarOpen && "justify-center p-1"
+            )}
+          >
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
               {user?.avatar_url ? (
-                <Image 
-                  src={user.avatar_url} 
-                  alt={user.name} 
-                  width={32} 
-                  height={32} 
+                <Image
+                  src={user.avatar_url}
+                  alt={user.name}
+                  width={32}
+                  height={32}
                   className="rounded-full object-cover"
                 />
               ) : (
@@ -168,8 +180,12 @@ export function Sidebar() {
             </div>
             {sidebarOpen && (
               <div className="flex-1 truncate min-w-0">
-                <p className="text-sm font-medium truncate">{getDisplayName(user?.name)}</p>
-                <p className="text-xs text-muted-foreground truncate">{user?.email || 'user@example.com'}</p>
+                <p className="text-sm font-medium truncate">
+                  {getDisplayName(user?.name)}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {user?.email || "user@example.com"}
+                </p>
               </div>
             )}
           </div>

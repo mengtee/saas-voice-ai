@@ -7,6 +7,7 @@ import {
   Appointment,
   WhatsAppFollowup,
   CallMetrics,
+  Campaign,
 } from "@/types";
 
 class ApiClient {
@@ -333,6 +334,183 @@ class ApiClient {
 
   async getCurrentUser(): Promise<ApiResponse<unknown>> {
     return this.handleRequest(this.client.get("/api/auth/me"));
+  }
+
+  // Campaigns API
+  async createCampaign(campaign: {
+    name: string;
+    agentId: string;
+    leadIds: string[];
+    customMessage?: string;
+    scheduledAt?: string;
+  }): Promise<ApiResponse<{
+    id: string;
+    name: string;
+    status: string;
+    totalLeads: number;
+    called: number;
+    successful: number;
+    failed: number;
+    createdAt: string;
+  }>> {
+    return this.handleRequest(
+      this.client.post("/api/campaigns", campaign)
+    );
+  }
+
+  /**
+   * Refresh a specific campaign status from ElevenLabs
+   */
+  async refreshCampaignStatus(campaignId: string): Promise<ApiResponse<{
+    success: boolean;
+    message: string;
+    campaign: Campaign;
+  }>> {
+    return this.handleRequest(
+      this.client.post(`/api/campaigns/${campaignId}/refresh`)
+    );
+  }
+
+  /**
+   * Refresh all active campaign statuses
+   */
+  async refreshAllCampaignStatuses(): Promise<ApiResponse<{
+    success: boolean;
+    message: string;
+    campaignsPolled: number;
+  }>> {
+    return this.handleRequest(
+      this.client.post("/api/campaigns/refresh-all")
+    );
+  }
+
+  async getCampaigns(): Promise<ApiResponse<Array<{
+    id: string;
+    name: string;
+    status: 'draft' | 'scheduled' | 'running' | 'paused' | 'completed' | 'failed';
+    totalLeads: number;
+    called: number;
+    successful: number;
+    failed: number;
+    scheduledAt?: string;
+    startedAt?: string;
+    completedAt?: string;
+    agentId: string;
+    customMessage?: string;
+    createdAt: string;
+  }>>> {
+    return this.handleRequest(this.client.get("/api/campaigns"));
+  }
+
+  async getCampaign(campaignId: string): Promise<ApiResponse<{
+    id: string;
+    name: string;
+    status: 'draft' | 'scheduled' | 'running' | 'paused' | 'completed' | 'failed';
+    totalLeads: number;
+    called: number;
+    successful: number;
+    failed: number;
+    scheduledAt?: string;
+    startedAt?: string;
+    completedAt?: string;
+    agentId: string;
+    customMessage?: string;
+    createdAt: string;
+  }>> {
+    return this.handleRequest(this.client.get(`/api/campaigns/${campaignId}`));
+  }
+
+  async startCampaign(campaignId: string): Promise<ApiResponse<void>> {
+    return this.handleRequest(
+      this.client.post(`/api/campaigns/${campaignId}/start`)
+    );
+  }
+
+  async pauseCampaign(campaignId: string): Promise<ApiResponse<void>> {
+    return this.handleRequest(
+      this.client.post(`/api/campaigns/${campaignId}/pause`)
+    );
+  }
+
+  async getCampaignCalls(campaignId: string): Promise<ApiResponse<Array<{
+    id: string;
+    leadId: string;
+    leadName: string;
+    phoneNumber: string;
+    status: 'pending' | 'calling' | 'completed' | 'failed';
+    conversationId?: string;
+    startedAt?: string;
+    completedAt?: string;
+    duration?: number;
+    outcome?: 'interested' | 'not_interested' | 'callback' | 'appointment' | 'no_answer';
+    error?: string;
+  }>>> {
+    return this.handleRequest(
+      this.client.get(`/api/campaigns/${campaignId}/calls`)
+    );
+  }
+
+  // Analytics API
+  async getAnalytics(dateFrom?: string, dateTo?: string): Promise<ApiResponse<{
+    overview: {
+      totalCalls: number;
+      totalLeads: number;
+      conversionRate: number;
+      avgCallDuration: number;
+      totalCampaigns: number;
+      successRate: number;
+    };
+    trends: {
+      callsOverTime: Array<{ date: string; calls: number; successful: number; failed: number }>;
+      leadsOverTime: Array<{ date: string; leads: number; converted: number }>;
+      campaignPerformance: Array<{ campaign: string; success: number; total: number }>;
+    };
+    demographics: {
+      callOutcomes: Array<{ outcome: string; count: number; percentage: number }>;
+      callsByHour: Array<{ hour: number; calls: number }>;
+      callsByDay: Array<{ day: string; calls: number }>;
+    };
+    performance: {
+      topPerformers: Array<{ agent: string; calls: number; success: number; rate: number }>;
+      campaignStats: Array<{ name: string; leads: number; called: number; success: number; status: string }>;
+    };
+  }>> {
+    const params = new URLSearchParams();
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    
+    return this.handleRequest(
+      this.client.get(`/api/analytics?${params.toString()}`)
+    );
+  }
+
+  async getAnalyticsOverview(dateFrom?: string, dateTo?: string): Promise<ApiResponse<{
+    totalCalls: number;
+    totalLeads: number;
+    conversionRate: number;
+    avgCallDuration: number;
+    totalCampaigns: number;
+    successRate: number;
+  }>> {
+    const params = new URLSearchParams();
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    
+    return this.handleRequest(
+      this.client.get(`/api/analytics/overview?${params.toString()}`)
+    );
+  }
+
+  async exportAnalytics(dateFrom?: string, dateTo?: string): Promise<Blob> {
+    const params = new URLSearchParams();
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    
+    const response = await this.client.get(`/api/analytics/export?${params.toString()}`, {
+      responseType: 'blob'
+    });
+    
+    return response.data;
   }
 }
 

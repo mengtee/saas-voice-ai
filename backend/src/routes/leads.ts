@@ -154,6 +154,56 @@ export const createLeadsRoutes = (pool: Pool, config: Config) => {
   });
 
   /**
+   * POST /api/leads
+   * Create a single lead
+   */
+  router.post("/", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      // Get tenant_id from authenticated user
+      const tenantId = req.user?.tenant_id;
+      if (!tenantId) {
+        return res.status(400).json({
+          success: false,
+          error: "Tenant context missing"
+        });
+      }
+
+      const { name, phoneNumber, email, purpose, notes, status = 'pending' } = req.body;
+
+      // Validate required fields
+      if (!name || !phoneNumber) {
+        return res.status(400).json({
+          success: false,
+          error: "Name and phone number are required"
+        });
+      }
+
+      const lead = await leadService.createLead({
+        name,
+        phone_number: phoneNumber,
+        email: email || null,
+        purpose: purpose || null,
+        notes: notes || null,
+        status,
+        tenant_id: tenantId,
+        date: new Date().toISOString()
+      });
+
+      res.status(201).json({
+        success: true,
+        data: lead,
+        message: "Lead created successfully"
+      });
+    } catch (error: any) {
+      console.error("Create lead error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to create lead"
+      });
+    }
+  });
+
+  /**
    * GET /api/leads/template
    * Download CSV template for lead uploads
    */

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -21,6 +21,7 @@ import {
   AlertCircle,
   Calendar
 } from 'lucide-react';
+import { apiClient } from '@/services/api';
 
 interface BatchCampaign {
   id: string;
@@ -57,7 +58,17 @@ export function BatchCalling({ selectedLeads = [], onCampaignStart, onCampaignCo
     leadIds: selectedLeads,
   });
 
-  const createCampaign = async () => {
+  // Update leadIds when selectedLeads changes
+  useEffect(() => {
+    setNewCampaign(prev => {
+      if (JSON.stringify(selectedLeads) !== JSON.stringify(prev.leadIds)) {
+        return { ...prev, leadIds: selectedLeads };
+      }
+      return prev;
+    });
+  }, [selectedLeads]);
+
+  const createCampaign = useCallback(async () => {
     if (!newCampaign.name || newCampaign.leadIds.length === 0) {
       alert('Please provide campaign name and select leads');
       return;
@@ -65,67 +76,93 @@ export function BatchCalling({ selectedLeads = [], onCampaignStart, onCampaignCo
 
     try {
       setLoading(true);
-      // In a real implementation, you'd call your batch API
-      const campaignId = `campaign_${Date.now()}`;
       
-      const campaign: BatchCampaign = {
-        id: campaignId,
+      const response = await apiClient.createCampaign({
         name: newCampaign.name,
-        status: newCampaign.scheduledAt ? 'scheduled' : 'draft',
-        totalLeads: newCampaign.leadIds.length,
-        called: 0,
-        successful: 0,
-        failed: 0,
-        scheduledAt: newCampaign.scheduledAt,
         agentId: newCampaign.agentId,
+        leadIds: newCampaign.leadIds,
         customMessage: newCampaign.customMessage,
-      };
-
-      setCampaigns(prev => [...prev, campaign]);
-      setIsCreating(false);
-      setNewCampaign({
-        name: '',
-        agentId: 'agent_3501k2cxpkgbf69s7q5jr9vtrxey',
-        customMessage: '',
-        scheduledAt: '',
-        leadIds: [],
+        scheduledAt: newCampaign.scheduledAt
       });
-      
-      onCampaignStart?.(campaignId);
+
+      if (response.success && response.data) {
+        const campaign: BatchCampaign = {
+          id: response.data.id || `campaign_${Date.now()}`,
+          name: response.data.name || 'Untitled Campaign',
+          status: response.data.status as BatchCampaign['status'] || 'draft',
+          totalLeads: Number(response.data.totalLeads) || 0,
+          called: Number(response.data.called) || 0,
+          successful: Number(response.data.successful) || 0,
+          failed: Number(response.data.failed) || 0,
+          scheduledAt: newCampaign.scheduledAt || undefined,
+          agentId: newCampaign.agentId,
+          customMessage: newCampaign.customMessage || undefined,
+        };
+
+        setCampaigns(prev => [...prev, campaign]);
+        setIsCreating(false);
+        setNewCampaign({
+          name: '',
+          agentId: 'agent_3501k2cxpkgbf69s7q5jr9vtrxey',
+          customMessage: '',
+          scheduledAt: '',
+          leadIds: selectedLeads,
+        });
+        
+        onCampaignStart?.(campaign.id);
+      } else {
+        alert(response.error || 'Failed to create campaign');
+      }
     } catch (error) {
       console.error('Failed to create campaign:', error);
       alert('Failed to create campaign');
     } finally {
       setLoading(false);
     }
-  };
+  }, [newCampaign, selectedLeads, onCampaignStart]);
 
   const startCampaign = async (campaignId: string) => {
     try {
       setLoading(true);
-      // Here you'd call ElevenLabs batch calling API
-      // For now, simulate the process
       
-      setCampaigns(prev => prev.map(c => 
-        c.id === campaignId 
-          ? { ...c, status: 'running', startedAt: new Date().toISOString() }
-          : c
-      ));
+      const response = await apiClient.startCampaign(campaignId);
+      
+      if (response.success) {
+        setCampaigns(prev => prev.map(c => 
+          c.id === campaignId 
+            ? { ...c, status: 'running', startedAt: new Date().toISOString() }
+            : c
+        ));
 
-      // Simulate progress updates
-      simulateCampaignProgress(campaignId);
+        // Start polling for campaign updates
+        pollCampaignProgress(campaignId);
+      } else {
+        alert(response.error || 'Failed to start campaign');
+      }
       
     } catch (error) {
       console.error('Failed to start campaign:', error);
+      alert('Failed to start campaign');
     } finally {
       setLoading(false);
     }
   };
 
   const pauseCampaign = async (campaignId: string) => {
-    setCampaigns(prev => prev.map(c => 
-      c.id === campaignId ? { ...c, status: 'paused' } : c
-    ));
+    try {
+      const response = await apiClient.pauseCampaign(campaignId);
+      
+      if (response.success) {
+        setCampaigns(prev => prev.map(c => 
+          c.id === campaignId ? { ...c, status: 'paused' } : c
+        ));
+      } else {
+        alert(response.error || 'Failed to pause campaign');
+      }
+    } catch (error) {
+      console.error('Failed to pause campaign:', error);
+      alert('Failed to pause campaign');
+    }
   };
 
   const stopCampaign = async (campaignId: string) => {
@@ -136,37 +173,48 @@ export function BatchCalling({ selectedLeads = [], onCampaignStart, onCampaignCo
     ));
   };
 
-  // Simulate campaign progress for demo
-  const simulateCampaignProgress = (campaignId: string) => {
-    const interval = setInterval(() => {
-      setCampaigns(prev => prev.map(c => {
-        if (c.id !== campaignId || c.status !== 'running') return c;
+  // Poll campaign progress from API
+  const pollCampaignProgress = (campaignId: string) => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await apiClient.getCampaign(campaignId);
         
-        const newCalled = Math.min(c.called + Math.floor(Math.random() * 3) + 1, c.totalLeads);
-        const newSuccessful = c.successful + Math.floor(Math.random() * 2);
-        const newFailed = newCalled - newSuccessful;
-        
-        if (newCalled >= c.totalLeads) {
-          clearInterval(interval);
-          onCampaignComplete?.(campaignId, { called: newCalled, successful: newSuccessful, failed: newFailed });
-          return {
-            ...c,
-            called: newCalled,
-            successful: newSuccessful,
-            failed: newFailed,
-            status: 'completed',
-            completedAt: new Date().toISOString()
-          };
+        if (response.success && response.data) {
+          const campaignData = response.data;
+          
+          setCampaigns(prev => prev.map(c => {
+            if (c.id !== campaignId) return c;
+            
+            const updated = {
+              ...c,
+              called: Number(campaignData.called) || 0,
+              successful: Number(campaignData.successful) || 0,
+              failed: Number(campaignData.failed) || 0,
+              status: campaignData.status as BatchCampaign['status'] || c.status
+            };
+
+            // Check if campaign is completed
+            if (campaignData.status === 'completed' || campaignData.status === 'failed') {
+              clearInterval(interval);
+              onCampaignComplete?.(campaignId, { 
+                called: campaignData.called, 
+                successful: campaignData.successful, 
+                failed: campaignData.failed 
+              });
+              
+              if (campaignData.completedAt) {
+                updated.completedAt = campaignData.completedAt;
+              }
+            }
+            
+            return updated;
+          }));
         }
-        
-        return {
-          ...c,
-          called: newCalled,
-          successful: newSuccessful,
-          failed: newFailed
-        };
-      }));
-    }, 2000);
+      } catch (error) {
+        console.error('Error polling campaign progress:', error);
+        clearInterval(interval);
+      }
+    }, 3000); // Poll every 3 seconds
   };
 
   const getStatusColor = (status: BatchCampaign['status']) => {
@@ -352,9 +400,9 @@ export function BatchCalling({ selectedLeads = [], onCampaignStart, onCampaignCo
                   <div className="space-y-3">
                     <div className="flex justify-between text-sm">
                       <span>Progress: {campaign.called} / {campaign.totalLeads}</span>
-                      <span>{Math.round((campaign.called / campaign.totalLeads) * 100)}%</span>
+                      <span>{campaign.totalLeads > 0 ? Math.round((campaign.called / campaign.totalLeads) * 100) : 0}%</span>
                     </div>
-                    <Progress value={(campaign.called / campaign.totalLeads) * 100} />
+                    <Progress value={campaign.totalLeads > 0 ? (campaign.called / campaign.totalLeads) * 100 : 0} />
                     
                     <div className="grid grid-cols-3 gap-4 text-sm">
                       <div className="flex items-center gap-2">
@@ -374,7 +422,7 @@ export function BatchCalling({ selectedLeads = [], onCampaignStart, onCampaignCo
                     {campaign.scheduledAt && (
                       <div className="text-sm text-muted-foreground">
                         <Clock className="inline h-4 w-4 mr-1" />
-                        Scheduled: {new Date(campaign.scheduledAt).toLocaleString()}
+                        Scheduled: {campaign.scheduledAt ? new Date(campaign.scheduledAt).toISOString().slice(0, 16).replace('T', ' ') : 'Not scheduled'}
                       </div>
                     )}
                   </div>

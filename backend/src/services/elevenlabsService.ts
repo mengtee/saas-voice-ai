@@ -175,4 +175,111 @@ export class ElevenLabsService {
       };
     }
   }
+
+  /**
+   * Create a batch calling campaign using ElevenLabs Batch Calling API
+   * https://elevenlabs.io/docs/api-reference/batch-calling/create
+   */
+  async createBatchCalling(
+    phoneNumbers: string[],
+    customData: Record<string, any> = {}
+  ): Promise<{ success: boolean; batchId?: string; error?: string }> {
+    try {
+      // Convert phone numbers to recipients format
+      const recipients = phoneNumbers.map(phoneNumber => ({
+        phone_number: phoneNumber
+      }));
+
+      const requestBody = {
+        call_name: customData.campaignName || 'Batch Campaign',
+        agent_id: this.agentId,
+        agent_phone_number_id: customData.agentPhoneNumberId || process.env.ELEVENLABS_PHONE_NUMBER_ID,
+        scheduled_time_unix: customData.scheduledTime || Math.floor(Date.now() / 1000), // Now or scheduled time
+        recipients: recipients
+      };
+
+      console.log('ElevenLabs batch calling request body:', JSON.stringify(requestBody, null, 2));
+      console.log('Environment variables check:');
+      console.log('- ELEVENLABS_AGENT_ID:', process.env.ELEVENLABS_AGENT_ID ? 'SET' : 'NOT SET');
+      console.log('- ELEVENLABS_PHONE_NUMBER_ID:', process.env.ELEVENLABS_PHONE_NUMBER_ID ? 'SET' : 'NOT SET');
+
+      const response = await axios.post(
+        `${this.baseUrl}/convai/batch-calling/submit`,
+        requestBody,
+        {
+          headers: {
+            'xi-api-key': this.apiKey,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return {
+        success: true,
+        batchId: response.data.batch_id || response.data.id
+      };
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('Error creating batch calling:', axiosError.response?.data || axiosError.message);
+      return {
+        success: false,
+        error: (axiosError.response?.data as any)?.detail || axiosError.message || 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Get batch calling status
+   */
+  async getBatchStatus(batchId: string): Promise<{ success: boolean; status?: any; error?: string }> {
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/convai/batch-calling/${batchId}`,
+        {
+          headers: {
+            'xi-api-key': this.apiKey
+          }
+        }
+      );
+
+      return {
+        success: true,
+        status: response.data
+      };
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('Error getting batch status:', axiosError.response?.data || axiosError.message);
+      return {
+        success: false,
+        error: (axiosError.response?.data as any)?.detail || axiosError.message || 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Cancel a batch calling campaign
+   */
+  async cancelBatch(batchId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await axios.post(
+        `${this.baseUrl}/convai/batch-calling/${batchId}/cancel`,
+        {},
+        {
+          headers: {
+            'xi-api-key': this.apiKey,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return { success: true };
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('Error canceling batch:', axiosError.response?.data || axiosError.message);
+      return {
+        success: false,
+        error: (axiosError.response?.data as any)?.detail || axiosError.message || 'Unknown error'
+      };
+    }
+  }
 }
