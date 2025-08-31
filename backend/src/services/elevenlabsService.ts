@@ -184,13 +184,28 @@ export class ElevenLabsService {
     phoneNumbers: string[],
     customData: Record<string, any> = {}
   ): Promise<{ success: boolean; batchId?: string; error?: string }> {
+    let requestBody: any;
+    
     try {
-      // Convert phone numbers to recipients format
-      const recipients = phoneNumbers.map(phoneNumber => ({
-        phone_number: phoneNumber
-      }));
+      // Convert phone numbers to recipients format with minimal dynamic variables
+      const recipients = phoneNumbers.map((phoneNumber, index) => {
+        const recipient: any = {
+          phone_number: phoneNumber
+        };
+        
+        // Add dynamic variables only if lead name exists
+        if (customData.leads && customData.leads[index] && customData.leads[index].name) {
+          recipient.conversation_initiation_client_data = {
+            dynamic_variables: {
+              name: customData.leads[index].name
+            }
+          };
+        }
+        
+        return recipient;
+      });
 
-      const requestBody = {
+      requestBody = {
         call_name: customData.campaignName || 'Batch Campaign',
         agent_id: this.agentId,
         agent_phone_number_id: customData.agentPhoneNumberId || process.env.ELEVENLABS_PHONE_NUMBER_ID,
@@ -220,7 +235,13 @@ export class ElevenLabsService {
       };
     } catch (error) {
       const axiosError = error as AxiosError;
-      console.error('Error creating batch calling:', axiosError.response?.data || axiosError.message);
+      console.error('=== ElevenLabs API Error Details ===');
+      console.error('Status:', axiosError.response?.status);
+      console.error('Status Text:', axiosError.response?.statusText);
+      console.error('Response Data:', JSON.stringify(axiosError.response?.data, null, 2));
+      console.error('Request Body was:', JSON.stringify(requestBody, null, 2));
+      console.error('=====================================');
+      
       return {
         success: false,
         error: (axiosError.response?.data as any)?.detail || axiosError.message || 'Unknown error'

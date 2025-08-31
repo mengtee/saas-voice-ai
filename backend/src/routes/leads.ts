@@ -223,6 +223,57 @@ export const createLeadsRoutes = (pool: Pool, config: Config) => {
   });
 
   /**
+   * PUT /api/leads/:id
+   * Update a lead
+   */
+  router.put("/:id", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { name, phoneNumber, email, purpose, notes, status } = req.body;
+
+      // Get tenant_id from authenticated user
+      const tenantId = req.user?.tenant_id;
+      if (!tenantId) {
+        return res.status(400).json({
+          success: false,
+          error: "Tenant context missing"
+        });
+      }
+
+      // Validate required fields
+      if (!name && !phoneNumber && !email && !purpose && !notes && !status) {
+        return res.status(400).json({
+          success: false,
+          error: "At least one field is required for update"
+        });
+      }
+
+      // Prepare update data
+      const updateData: any = {};
+      if (name) updateData.name = name;
+      if (phoneNumber) updateData.phone_number = phoneNumber;
+      if (email) updateData.email = email;
+      if (purpose) updateData.purpose = purpose;
+      if (notes) updateData.notes = notes;
+      if (status) updateData.status = status;
+
+      const result = await leadService.updateLead(id, updateData, tenantId);
+
+      res.json({
+        success: true,
+        data: result,
+        message: "Lead updated successfully"
+      });
+    } catch (error: any) {
+      console.error("Update lead error:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message || "Failed to update lead"
+      });
+    }
+  });
+
+  /**
    * DELETE /api/leads/:id
    * Delete a lead
    */

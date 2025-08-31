@@ -59,7 +59,7 @@ export function RealTimeMonitor() {
                 id: data.call.id,
                 leadName: (data as { leadName?: string }).leadName || 'Unknown',
                 phoneNumber: data.call.phoneNumber || '',
-                agentId: (data as { agentId?: string }).agentId || 'agent_3501k2cxpkgbf69s7q5jr9vtrxey',
+                agentId: (data as { agentId?: string }).agentId || 'agent_5001k2a567kxeeds5cpbjn13jdt3',
                 status: 'connecting',
                 duration: 0,
                 startTime: data.call.startTime

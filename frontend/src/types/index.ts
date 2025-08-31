@@ -25,14 +25,33 @@ export interface Call {
 
 export interface Appointment {
   id: string;
-  leadId: string;
-  callId?: string;
+  tenant_id: string;
+  lead_id?: string;
+  campaign_id?: string;
+  conversation_id?: string;
+  cal_booking_id?: string;
+  cal_event_type_id?: string;
   title: string;
   description?: string;
-  scheduledAt: string;
-  status: 'scheduled' | 'completed' | 'cancelled' | 'rescheduled';
-  createdAt: string;
-  updatedAt: string;
+  attendee_name: string;
+  attendee_email: string;
+  attendee_phone?: string;
+  start_time: string;
+  end_time: string;
+  timezone: string;
+  duration_minutes: number;
+  status: 'scheduled' | 'confirmed' | 'cancelled' | 'completed' | 'no_show';
+  booking_status: 'pending' | 'confirmed' | 'cancelled' | 'rescheduled';
+  meeting_url?: string;
+  meeting_password?: string;
+  location?: string;
+  booked_by: 'ai_agent' | 'manual' | 'api';
+  booking_reference?: string;
+  created_at: string;
+  updated_at: string;
+  confirmed_at?: string;
+  cancelled_at?: string;
+  completed_at?: string;
 }
 
 export interface WhatsAppFollowup {

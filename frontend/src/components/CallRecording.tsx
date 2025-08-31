@@ -77,7 +77,7 @@ export function CallRecording({ callId, onClose }: CallRecordingProps) {
           startTime: '2024-08-27T10:00:00Z',
           endTime: '2024-08-27T10:04:05Z',
           outcome: 'appointment',
-          agentId: 'agent_3501k2cxpkgbf69s7q5jr9vtrxey',
+          agentId: 'agent_5001k2a567kxeeds5cpbjn13jdt3',
           transcript: [
             {
               id: 'seg_1',
@@ -127,7 +127,7 @@ export function CallRecording({ callId, onClose }: CallRecordingProps) {
           startTime: '2024-08-27T09:30:00Z',
           endTime: '2024-08-27T09:33:00Z',
           outcome: 'callback',
-          agentId: 'agent_3501k2cxpkgbf69s7q5jr9vtrxey',
+          agentId: 'agent_5001k2a567kxeeds5cpbjn13jdt3',
           transcript: [
             {
               id: 'seg_5',

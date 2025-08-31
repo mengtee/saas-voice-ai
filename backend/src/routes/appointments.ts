@@ -1,0 +1,441 @@
+import { Router, Request, Response } from 'express';
+import { Pool } from 'pg';
+import { Config } from '../config';
+import { createAuthMiddleware } from '../middleware/auth';
+import { AppointmentService } from '../services/appointmentService';
+
+export function createAppointmentsRoutes(pool: Pool, config: Config) {
+  const router = Router();
+  const appointmentService = new AppointmentService(pool);
+  const authenticateToken = createAuthMiddleware(pool, config);
+
+  /**
+   * Get available time slots from Cal.com
+   */
+  router.get('/slots', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { eventTypeId, startDate, endDate, timezone = 'UTC' } = req.query;
+
+      if (!eventTypeId || !startDate || !endDate) {
+        return res.status(400).json({
+          success: false,
+          error: 'eventTypeId, startDate, and endDate are required'
+        });
+      }
+
+      const result = await appointmentService.getAvailableSlots(
+        eventTypeId as string,
+        startDate as string,
+        endDate as string,
+        timezone as string
+      );
+
+      res.json(result);
+    } catch (error) {
+      console.error('Error getting available slots:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get available slots'
+      });
+    }
+  });
+
+  /**
+   * Book an appointment through Cal.com
+   */
+  router.post('/book', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { 
+        eventTypeId, 
+        start, 
+        end,
+        attendeeName, 
+        attendeeEmail, 
+        attendeeTimeZone,
+        title,
+        description,
+        location,
+        leadId,
+        campaignId,
+        conversationId
+      } = req.body;
+
+      const tenantId = req.user?.tenant_id;
+
+      if (!tenantId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized'
+        });
+      }
+
+      if (!eventTypeId || !start || !attendeeName || !attendeeEmail) {
+        return res.status(400).json({
+          success: false,
+          error: 'eventTypeId, start, attendeeName, and attendeeEmail are required'
+        });
+      }
+
+      // Book through Cal.com
+      const bookingResult = await appointmentService.bookCalComAppointment({
+        eventTypeId: parseInt(eventTypeId),
+        start,
+        end,
+        attendee: {
+          name: attendeeName,
+          email: attendeeEmail,
+          timeZone: attendeeTimeZone || 'UTC'
+        },
+        title,
+        description,
+        location
+      });
+
+      if (!bookingResult.success || !bookingResult.booking) {
+        return res.status(400).json({
+          success: false,
+          error: bookingResult.error || 'Failed to book appointment'
+        });
+      }
+
+      // Sync with local database
+      const syncResult = await appointmentService.syncCalComBooking(
+        bookingResult.booking,
+        tenantId,
+        leadId,
+        campaignId,
+        conversationId
+      );
+
+      if (!syncResult.success) {
+        console.error('Failed to sync booking to database:', syncResult.error);
+        // Note: Cal.com booking was successful, but local sync failed
+        return res.json({
+          success: true,
+          data: bookingResult.booking,
+          warning: 'Appointment booked successfully but failed to sync to local database'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          calcomBooking: bookingResult.booking,
+          appointment: syncResult.appointment
+        }
+      });
+    } catch (error) {
+      console.error('Error booking appointment:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to book appointment'
+      });
+    }
+  });
+
+  /**
+   * Get appointments for the authenticated tenant
+   */
+  router.get('/', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.user?.tenant_id;
+      const { limit = 50, offset = 0 } = req.query;
+
+      if (!tenantId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized'
+        });
+      }
+
+      const result = await appointmentService.getAppointments(
+        tenantId,
+        parseInt(limit as string),
+        parseInt(offset as string)
+      );
+
+      res.json({
+        success: true,
+        data: {
+          appointments: result.appointments || [],
+          total: result.total || 0
+        }
+      });
+    } catch (error) {
+      console.error('Error getting appointments:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get appointments'
+      });
+    }
+  });
+
+
+  /**
+   * Get calendar statistics
+   */
+  router.get('/stats', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.user?.tenant_id;
+
+      if (!tenantId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized'
+        });
+      }
+
+      // Get current date boundaries
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 7);
+
+      // Query for today's appointments
+      const todayQuery = `
+        SELECT COUNT(*) as count, status, booking_status
+        FROM appointments 
+        WHERE tenant_id = $1 
+        AND start_time >= $2 
+        AND start_time < $3
+        GROUP BY status, booking_status
+      `;
+      
+      const todayResult = await appointmentService.query(todayQuery, [
+        tenantId, 
+        today.toISOString(), 
+        tomorrow.toISOString()
+      ]);
+
+      // Query for this week's appointments
+      const weekQuery = `
+        SELECT COUNT(*) as count
+        FROM appointments 
+        WHERE tenant_id = $1 
+        AND start_time >= $2 
+        AND start_time < $3
+      `;
+      
+      const weekResult = await appointmentService.query(weekQuery, [
+        tenantId,
+        startOfWeek.toISOString(),
+        endOfWeek.toISOString()
+      ]);
+
+      // Calculate stats
+      const todayStats = { confirmed: 0, pending: 0, cancelled: 0 };
+      let todayTotal = 0;
+      
+      todayResult.rows.forEach((row: any) => {
+        const count = parseInt(row.count);
+        todayTotal += count;
+        
+        if (row.status === 'confirmed' || row.booking_status === 'confirmed') {
+          todayStats.confirmed += count;
+        } else if (row.status === 'cancelled' || row.booking_status === 'cancelled') {
+          todayStats.cancelled += count;
+        } else {
+          todayStats.pending += count;
+        }
+      });
+
+      const thisWeekTotal = parseInt(weekResult.rows[0]?.count || '0');
+
+      // Calculate average duration (simplified - could be more sophisticated)
+      const avgQuery = `
+        SELECT AVG(duration_minutes) as avg_duration
+        FROM appointments 
+        WHERE tenant_id = $1 
+        AND status = 'completed'
+        AND duration_minutes IS NOT NULL
+      `;
+      
+      const avgResult = await appointmentService.query(avgQuery, [tenantId]);
+      const avgDuration = Math.round(parseFloat(avgResult.rows[0]?.avg_duration || '30'));
+
+      // Calculate show rate (completed vs total)
+      const showRateQuery = `
+        SELECT 
+          COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+          COUNT(*) as total
+        FROM appointments 
+        WHERE tenant_id = $1 
+        AND start_time < NOW()
+      `;
+      
+      const showRateResult = await appointmentService.query(showRateQuery, [tenantId]);
+      const completed = parseInt(showRateResult.rows[0]?.completed || '0');
+      const total = parseInt(showRateResult.rows[0]?.total || '1');
+      const showRate = Math.round((completed / total) * 100);
+
+      res.json({
+        success: true,
+        data: {
+          todayAppointments: todayTotal,
+          thisWeekAppointments: thisWeekTotal,
+          showRate: showRate,
+          avgDuration: avgDuration,
+          todayStats: todayStats
+        }
+      });
+    } catch (error) {
+      console.error('Error getting calendar stats:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get calendar stats'
+      });
+    }
+  });
+
+  /**
+   * Get a specific appointment
+   */
+  router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const tenantId = req.user?.tenant_id;
+
+      if (!tenantId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized'
+        });
+      }
+
+      const result = await appointmentService.getAppointment(id, tenantId);
+      res.json(result);
+    } catch (error) {
+      console.error('Error getting appointment:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get appointment'
+      });
+    }
+  });
+
+  /**
+   * Update appointment status
+   */
+  router.patch('/:id/status', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { status, bookingStatus } = req.body;
+      const tenantId = req.user?.tenant_id;
+
+      if (!tenantId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized'
+        });
+      }
+
+      if (!status) {
+        return res.status(400).json({
+          success: false,
+          error: 'status is required'
+        });
+      }
+
+      const result = await appointmentService.updateAppointmentStatus(
+        id, 
+        tenantId, 
+        status, 
+        bookingStatus
+      );
+
+      res.json(result);
+    } catch (error) {
+      console.error('Error updating appointment status:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update appointment status'
+      });
+    }
+  });
+
+  /**
+   * Cancel an appointment
+   */
+  router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      const tenantId = req.user?.tenant_id;
+
+      if (!tenantId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized'
+        });
+      }
+
+      // Get appointment to find Cal.com booking ID
+      const appointmentResult = await appointmentService.getAppointment(id, tenantId);
+      
+      if (!appointmentResult.success || !appointmentResult.appointment) {
+        return res.status(404).json({
+          success: false,
+          error: 'Appointment not found'
+        });
+      }
+
+      const appointment = appointmentResult.appointment;
+
+      // Cancel in Cal.com if we have a booking ID
+      if (appointment.cal_booking_id) {
+        const cancelResult = await appointmentService.cancelCalComBooking(
+          appointment.cal_booking_id,
+          reason
+        );
+
+        if (!cancelResult.success) {
+          console.error('Failed to cancel Cal.com booking:', cancelResult.error);
+          // Continue with local cancellation even if Cal.com fails
+        }
+      }
+
+      // Update local status
+      const updateResult = await appointmentService.updateAppointmentStatus(
+        id,
+        tenantId,
+        'cancelled',
+        'cancelled'
+      );
+
+      res.json(updateResult);
+    } catch (error) {
+      console.error('Error cancelling appointment:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to cancel appointment'
+      });
+    }
+  });
+
+
+  /**
+   * Webhook endpoint for Cal.com events (for future use)
+   */
+  router.post('/webhook', async (req: Request, res: Response) => {
+    try {
+      // TODO: Implement webhook handling for Cal.com events
+      // This will allow real-time updates from Cal.com
+      console.log('Cal.com webhook received:', req.body);
+      
+      res.json({ success: true, message: 'Webhook received' });
+    } catch (error) {
+      console.error('Error handling webhook:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to handle webhook'
+      });
+    }
+  });
+
+  return router;
+}

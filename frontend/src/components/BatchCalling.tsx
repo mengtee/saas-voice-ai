@@ -52,7 +52,7 @@ export function BatchCalling({ selectedLeads = [], onCampaignStart, onCampaignCo
   // Campaign creation form
   const [newCampaign, setNewCampaign] = useState({
     name: '',
-    agentId: 'agent_3501k2cxpkgbf69s7q5jr9vtrxey', // From your env
+    agentId: 'agent_5001k2a567kxeeds5cpbjn13jdt3', // From your env
     customMessage: '',
     scheduledAt: '',
     leadIds: selectedLeads,
@@ -103,7 +103,7 @@ export function BatchCalling({ selectedLeads = [], onCampaignStart, onCampaignCo
         setIsCreating(false);
         setNewCampaign({
           name: '',
-          agentId: 'agent_3501k2cxpkgbf69s7q5jr9vtrxey',
+          agentId: 'agent_5001k2a567kxeeds5cpbjn13jdt3',
           customMessage: '',
           scheduledAt: '',
           leadIds: selectedLeads,
@@ -291,7 +291,7 @@ export function BatchCalling({ selectedLeads = [], onCampaignStart, onCampaignCo
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="agent_3501k2cxpkgbf69s7q5jr9vtrxey">Primary Sales Agent</SelectItem>
+                      <SelectItem value="agent_5001k2a567kxeeds5cpbjn13jdt3">Primary Sales Agent</SelectItem>
                       <SelectItem value="agent_secondary">Secondary Agent</SelectItem>
                     </SelectContent>
                   </Select>

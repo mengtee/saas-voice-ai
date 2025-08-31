@@ -200,10 +200,17 @@ class ApiClient {
 
   // Appointments API
   async getAppointments(
+    limit: number = 50, 
+    offset: number = 0,
     dateFrom?: string,
     dateTo?: string
-  ): Promise<ApiResponse<Appointment[]>> {
+  ): Promise<ApiResponse<{
+    appointments: Appointment[];
+    total: number;
+  }>> {
     const params = new URLSearchParams();
+    params.append("limit", limit.toString());
+    params.append("offset", offset.toString());
     if (dateFrom) params.append("dateFrom", dateFrom);
     if (dateTo) params.append("dateTo", dateTo);
 
@@ -231,6 +238,52 @@ class ApiClient {
 
   async deleteAppointment(id: string): Promise<ApiResponse<void>> {
     return this.handleRequest(this.client.delete(`/api/appointments/${id}`));
+  }
+
+  async getCalendarStats(): Promise<ApiResponse<{
+    todayAppointments: number;
+    thisWeekAppointments: number;
+    showRate: number;
+    avgDuration: number;
+    todayStats: {
+      confirmed: number;
+      pending: number;
+      cancelled: number;
+    };
+  }>> {
+    return this.handleRequest(this.client.get('/api/appointments/stats'));
+  }
+
+  async bookAppointment(appointment: {
+    eventTypeId: string;
+    start: string;
+    end?: string;
+    attendeeName: string;
+    attendeeEmail: string;
+    attendeeTimeZone?: string;
+    title?: string;
+    description?: string;
+    location?: string;
+    leadId?: string;
+    campaignId?: string;
+    conversationId?: string;
+  }): Promise<ApiResponse<{
+    calcomBooking: Record<string, unknown>;
+    appointment: Appointment;
+  }>> {
+    return this.handleRequest(
+      this.client.post('/api/appointments/book', appointment)
+    );
+  }
+
+  async updateAppointmentStatus(
+    id: string, 
+    status: 'scheduled' | 'confirmed' | 'cancelled' | 'completed' | 'no_show',
+    bookingStatus?: 'pending' | 'confirmed' | 'cancelled' | 'rescheduled'
+  ): Promise<ApiResponse<void>> {
+    return this.handleRequest(
+      this.client.patch(`/api/appointments/${id}/status`, { status, bookingStatus })
+    );
   }
 
   // WhatsApp Follow-ups API
@@ -512,6 +565,7 @@ class ApiClient {
     
     return response.data;
   }
+
 }
 
 // Export singleton instance

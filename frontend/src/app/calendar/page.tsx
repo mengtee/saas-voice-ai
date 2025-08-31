@@ -1,32 +1,262 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { MainLayout } from '@/components/Layout/MainLayout';
 import { useAppStore } from '@/store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, Plus, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from '@/components/ui/sheet';
+import { Calendar, Clock, Plus, Users, ChevronLeft, ChevronRight, Loader2, RefreshCw, X } from 'lucide-react';
+import { apiClient } from '@/services/api';
+import { Appointment } from '@/types';
+
+interface CalendarStats {
+  todayAppointments: number;
+  thisWeekAppointments: number;
+  showRate: number;
+  avgDuration: number;
+  todayStats: {
+    confirmed: number;
+    pending: number;
+    cancelled: number;
+  };
+}
 
 export default function CalendarPage() {
   const { setCurrentPage } = useAppStore();
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [stats, setStats] = useState<CalendarStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  
+  // Add appointment form state
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [appointmentForm, setAppointmentForm] = useState({
+    title: '',
+    attendeeName: '',
+    attendeeEmail: '',
+    attendeeTimeZone: 'UTC',
+    start: '',
+    end: '',
+    description: '',
+    location: '',
+    eventTypeId: '1' // default event type
+  });
+
+  const loadData = async (showLoader = true) => {
+    try {
+      if (showLoader) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
+
+      // Load appointments and stats in parallel
+      const [appointmentsResponse, statsResponse] = await Promise.all([
+        apiClient.getAppointments(20, 0), // Get first 20 appointments
+        apiClient.getCalendarStats()
+      ]);
+
+      if (appointmentsResponse.success && appointmentsResponse.data) {
+        setAppointments(appointmentsResponse.data.appointments || []);
+      }
+
+      if (statsResponse.success && statsResponse.data) {
+        setStats(statsResponse.data);
+      }
+    } catch (error) {
+      console.error('Error loading calendar data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleCreateAppointment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      const response = await apiClient.bookAppointment({
+        eventTypeId: appointmentForm.eventTypeId,
+        start: appointmentForm.start,
+        end: appointmentForm.end,
+        attendeeName: appointmentForm.attendeeName,
+        attendeeEmail: appointmentForm.attendeeEmail,
+        attendeeTimeZone: appointmentForm.attendeeTimeZone,
+        title: appointmentForm.title,
+        description: appointmentForm.description,
+        location: appointmentForm.location
+      });
+
+      if (response.success) {
+        // Reset form and close sheet
+        setAppointmentForm({
+          title: '',
+          attendeeName: '',
+          attendeeEmail: '',
+          attendeeTimeZone: 'UTC',
+          start: '',
+          end: '',
+          description: '',
+          location: '',
+          eventTypeId: '1'
+        });
+        setIsSheetOpen(false);
+        
+        // Reload data to show new appointment
+        await loadData(false);
+      } else {
+        console.error('Failed to create appointment:', response.error);
+      }
+    } catch (error) {
+      console.error('Error creating appointment:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFormChange = (field: string, value: string) => {
+    setAppointmentForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
 
   useEffect(() => {
     setCurrentPage('calendar');
+    loadData();
   }, [setCurrentPage]);
 
-  // Mock calendar data
-  const todayAppointments = [
-    { id: '1', time: '09:00', client: 'John Smith', type: 'Sales Call', duration: '30 min', status: 'confirmed' },
-    { id: '2', time: '11:30', client: 'Sarah Johnson', type: 'Follow-up', duration: '15 min', status: 'pending' },
-    { id: '3', time: '14:00', client: 'Mike Davis', type: 'Demo Call', duration: '45 min', status: 'confirmed' },
-    { id: '4', time: '16:30', client: 'Emily Brown', type: 'Consultation', duration: '30 min', status: 'confirmed' },
-  ];
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadData(false);
+    }, 30000);
 
-  const upcomingAppointments = [
-    { id: '5', date: 'Tomorrow', time: '10:00', client: 'David Wilson', type: 'Sales Call' },
-    { id: '6', date: 'Dec 23', time: '15:00', client: 'Lisa Anderson', type: 'Follow-up' },
-    { id: '7', date: 'Dec 24', time: '09:30', client: 'Robert Taylor', type: 'Demo Call' },
-  ];
+    return () => clearInterval(interval);
+  }, []);
+
+  // Filter today's appointments
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const todayAppointments = appointments.filter(apt => 
+    apt.start_time?.startsWith(todayStr)
+  ).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+
+  // Filter upcoming appointments (next 7 days, excluding today)
+  const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const upcomingAppointments = appointments.filter(apt => {
+    const aptDate = new Date(apt.start_time);
+    return aptDate > today && aptDate <= nextWeek && !apt.start_time?.startsWith(todayStr);
+  }).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+
+  const formatTime = (dateTime: string) => {
+    return new Date(dateTime).toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
+  };
+
+  const formatDate = (dateTime: string) => {
+    const date = new Date(dateTime);
+    const today = new Date();
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+    
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+      return 'Tomorrow';
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+  };
+
+  const getStatusColor = (status: string, bookingStatus: string) => {
+    if (status === 'confirmed') return 'bg-green-100 text-green-800';
+    if (status === 'cancelled') return 'bg-red-100 text-red-800';
+    if (bookingStatus === 'pending') return 'bg-yellow-100 text-yellow-800';
+    return 'bg-gray-100 text-gray-800';
+  };
+
+  // Calendar navigation functions
+  const goToPreviousMonth = () => {
+    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const goToNextMonth = () => {
+    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  // Get calendar data
+  const getCalendarDays = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    
+    // First day of the month
+    const firstDay = new Date(year, month, 1);
+    // Last day of the month
+    const lastDay = new Date(year, month + 1, 0);
+    // First day of the calendar (might be from previous month)
+    const calendarStart = new Date(firstDay);
+    calendarStart.setDate(firstDay.getDate() - firstDay.getDay());
+    
+    const days = [];
+    const today = new Date();
+    
+    // Generate 42 days (6 weeks)
+    for (let i = 0; i < 42; i++) {
+      const date = new Date(calendarStart);
+      date.setDate(calendarStart.getDate() + i);
+      
+      const isCurrentMonth = date.getMonth() === month;
+      const isToday = date.toDateString() === today.toDateString();
+      const dateStr = date.toISOString().split('T')[0];
+      
+      // Count appointments for this date
+      const dayAppointments = appointments.filter(apt => 
+        apt.start_time?.startsWith(dateStr)
+      );
+      
+      days.push({
+        date: date.getDate(),
+        fullDate: date,
+        isCurrentMonth,
+        isToday,
+        appointmentCount: dayAppointments.length,
+        appointments: dayAppointments
+      });
+    }
+    
+    return days;
+  };
+
+  const getMonthYearDisplay = () => {
+    return currentMonth.toLocaleDateString('en-US', { 
+      month: 'long', 
+      year: 'numeric' 
+    });
+  };
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-[60vh]">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+            <p className="mt-2 text-muted-foreground">Loading calendar data...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -40,10 +270,150 @@ export default function CalendarPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Appointment
+            <Button onClick={() => loadData(false)} disabled={refreshing}>
+              {refreshing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Refresh
             </Button>
+            <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+              <SheetTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Appointment
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="w-[400px] sm:w-[540px]">
+                <SheetHeader>
+                  <SheetTitle>Create New Appointment</SheetTitle>
+                  <SheetDescription>
+                    Schedule a new appointment with your client or prospect.
+                  </SheetDescription>
+                </SheetHeader>
+                
+                <form onSubmit={handleCreateAppointment} className="space-y-4 mt-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Appointment Title</Label>
+                    <Input
+                      id="title"
+                      value={appointmentForm.title}
+                      onChange={(e) => handleFormChange('title', e.target.value)}
+                      placeholder="e.g., Product Demo Call"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="attendeeName">Attendee Name</Label>
+                      <Input
+                        id="attendeeName"
+                        value={appointmentForm.attendeeName}
+                        onChange={(e) => handleFormChange('attendeeName', e.target.value)}
+                        placeholder="John Doe"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="attendeeEmail">Attendee Email</Label>
+                      <Input
+                        id="attendeeEmail"
+                        type="email"
+                        value={appointmentForm.attendeeEmail}
+                        onChange={(e) => handleFormChange('attendeeEmail', e.target.value)}
+                        placeholder="john@company.com"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="start">Start Date & Time</Label>
+                      <Input
+                        id="start"
+                        type="datetime-local"
+                        value={appointmentForm.start}
+                        onChange={(e) => handleFormChange('start', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="end">End Date & Time</Label>
+                      <Input
+                        id="end"
+                        type="datetime-local"
+                        value={appointmentForm.end}
+                        onChange={(e) => handleFormChange('end', e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Location</Label>
+                    <Select value={appointmentForm.location} onValueChange={(value) => handleFormChange('location', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select location type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Google Meet">Google Meet</SelectItem>
+                        <SelectItem value="Zoom Meeting">Zoom Meeting</SelectItem>
+                        <SelectItem value="Microsoft Teams">Microsoft Teams</SelectItem>
+                        <SelectItem value="Phone Call">Phone Call</SelectItem>
+                        <SelectItem value="In Person">In Person</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="timezone">Timezone</Label>
+                    <Select value={appointmentForm.attendeeTimeZone} onValueChange={(value) => handleFormChange('attendeeTimeZone', value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="UTC">UTC</SelectItem>
+                        <SelectItem value="America/New_York">Eastern Time</SelectItem>
+                        <SelectItem value="America/Chicago">Central Time</SelectItem>
+                        <SelectItem value="America/Denver">Mountain Time</SelectItem>
+                        <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
+                        <SelectItem value="Asia/Kuala_Lumpur">Malaysia Time</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description (Optional)</Label>
+                    <Textarea
+                      id="description"
+                      value={appointmentForm.description}
+                      onChange={(e) => handleFormChange('description', e.target.value)}
+                      placeholder="Meeting agenda or additional notes..."
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="flex justify-end space-x-2 pt-4">
+                    <SheetClose asChild>
+                      <Button type="button" variant="outline">Cancel</Button>
+                    </SheetClose>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        'Create Appointment'
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </SheetContent>
+            </Sheet>
             <Button variant="outline">
               <Calendar className="mr-2 h-4 w-4" />
               Export Calendar
@@ -59,9 +429,9 @@ export default function CalendarPage() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">4</div>
+              <div className="text-2xl font-bold">{stats?.todayAppointments || 0}</div>
               <p className="text-xs text-muted-foreground">
-                3 confirmed, 1 pending
+                {stats?.todayStats.confirmed || 0} confirmed, {stats?.todayStats.pending || 0} pending
               </p>
             </CardContent>
           </Card>
@@ -72,7 +442,7 @@ export default function CalendarPage() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">18</div>
+              <div className="text-2xl font-bold">{stats?.thisWeekAppointments || 0}</div>
               <p className="text-xs text-muted-foreground">
                 Scheduled appointments
               </p>
@@ -85,7 +455,7 @@ export default function CalendarPage() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">87%</div>
+              <div className="text-2xl font-bold">{stats?.showRate || 0}%</div>
               <p className="text-xs text-muted-foreground">
                 Client attendance rate
               </p>
@@ -98,7 +468,7 @@ export default function CalendarPage() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">32 min</div>
+              <div className="text-2xl font-bold">{stats?.avgDuration || 0} min</div>
               <p className="text-xs text-muted-foreground">
                 Average meeting length
               </p>
@@ -111,12 +481,12 @@ export default function CalendarPage() {
           <Card className="lg:col-span-1">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>December 2024</CardTitle>
+                <CardTitle>{getMonthYearDisplay()}</CardTitle>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={goToPreviousMonth}>
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={goToNextMonth}>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -131,15 +501,22 @@ export default function CalendarPage() {
                   </div>
                 ))}
                 {/* Calendar days */}
-                {Array.from({ length: 31 }, (_, i) => i + 1).map((date) => (
+                {getCalendarDays().map((day, index) => (
                   <div
-                    key={date}
-                    className={`p-2 text-sm hover:bg-muted rounded cursor-pointer ${
-                      date === 21 ? 'bg-primary text-primary-foreground' :
-                      [22, 23, 24, 25].includes(date) ? 'bg-blue-100 text-blue-800' : ''
+                    key={index}
+                    className={`p-2 text-sm hover:bg-muted rounded cursor-pointer relative ${
+                      day.isToday ? 'bg-primary text-primary-foreground font-bold' :
+                      day.appointmentCount > 0 ? 'bg-blue-100 text-blue-800' :
+                      !day.isCurrentMonth ? 'text-muted-foreground opacity-50' : ''
                     }`}
+                    title={day.appointmentCount > 0 ? `${day.appointmentCount} appointment${day.appointmentCount > 1 ? 's' : ''}` : undefined}
                   >
-                    {date}
+                    {day.date}
+                    {day.appointmentCount > 0 && (
+                      <div className="absolute top-1 right-1 w-2 h-2 bg-blue-600 rounded-full text-xs flex items-center justify-center">
+                        {day.appointmentCount > 9 ? '9+' : day.appointmentCount}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -151,37 +528,55 @@ export default function CalendarPage() {
             <CardHeader>
               <CardTitle>Today&apos;s Schedule</CardTitle>
               <CardDescription>
-                December 21, 2024 - Your appointments for today
+                {new Date().toLocaleDateString('en-US', { 
+                  weekday: 'long',
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })} - Your appointments for today
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {todayAppointments.map((appointment) => (
-                  <div key={appointment.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <div className="text-center">
-                        <div className="text-sm font-medium">{appointment.time}</div>
-                        <div className="text-xs text-muted-foreground">{appointment.duration}</div>
+                {todayAppointments.length > 0 ? (
+                  todayAppointments.map((appointment) => (
+                    <div key={appointment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-4">
+                        <div className="text-center">
+                          <div className="text-sm font-medium">{formatTime(appointment.start_time)}</div>
+                          <div className="text-xs text-muted-foreground">{appointment.duration_minutes} min</div>
+                        </div>
+                        <div>
+                          <p className="font-medium">{appointment.attendee_name}</p>
+                          <p className="text-sm text-muted-foreground">{appointment.title}</p>
+                          {appointment.location && (
+                            <p className="text-xs text-muted-foreground">{appointment.location}</p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">{appointment.client}</p>
-                        <p className="text-sm text-muted-foreground">{appointment.type}</p>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(appointment.status, appointment.booking_status)}`}>
+                          {appointment.status}
+                        </span>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            // TODO: Implement edit appointment
+                            console.log('Edit appointment:', appointment.id);
+                          }}
+                        >
+                          Edit
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        appointment.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                        appointment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {appointment.status}
-                      </span>
-                      <Button variant="ghost" size="sm">
-                        Edit
-                      </Button>
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar className="mx-auto h-12 w-12 mb-4" />
+                    <p>No appointments scheduled for today</p>
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
@@ -197,28 +592,55 @@ export default function CalendarPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {upcomingAppointments.map((appointment) => (
-                <div key={appointment.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <div className="text-center min-w-[80px]">
-                      <div className="text-sm font-medium">{appointment.date}</div>
-                      <div className="text-xs text-muted-foreground">{appointment.time}</div>
+              {upcomingAppointments.length > 0 ? (
+                upcomingAppointments.map((appointment) => (
+                  <div key={appointment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-4">
+                      <div className="text-center min-w-[80px]">
+                        <div className="text-sm font-medium">{formatDate(appointment.start_time)}</div>
+                        <div className="text-xs text-muted-foreground">{formatTime(appointment.start_time)}</div>
+                      </div>
+                      <div>
+                        <p className="font-medium">{appointment.attendee_name}</p>
+                        <p className="text-sm text-muted-foreground">{appointment.title}</p>
+                        {appointment.location && (
+                          <p className="text-xs text-muted-foreground">{appointment.location}</p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">{appointment.client}</p>
-                      <p className="text-sm text-muted-foreground">{appointment.type}</p>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(appointment.status, appointment.booking_status)}`}>
+                        {appointment.status}
+                      </span>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => {
+                          // TODO: Implement reschedule
+                          console.log('Reschedule appointment:', appointment.id);
+                        }}
+                      >
+                        Reschedule
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => {
+                          // TODO: Implement view details
+                          console.log('View appointment details:', appointment.id);
+                        }}
+                      >
+                        Details
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm">
-                      Reschedule
-                    </Button>
-                    <Button variant="ghost" size="sm">
-                      Details
-                    </Button>
-                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="mx-auto h-12 w-12 mb-4" />
+                  <p>No upcoming appointments</p>
                 </div>
-              ))}
+              )}
             </div>
             <div className="mt-4 pt-4 border-t">
               <Button variant="outline" className="w-full">
@@ -228,15 +650,18 @@ export default function CalendarPage() {
           </CardContent>
         </Card>
 
-        {/* Coming Soon Notice */}
-        <Card className="border-dashed">
+        {/* Cal.com Integration Status */}
+        <Card className="border-green-200 bg-green-50">
           <CardContent className="pt-6">
             <div className="text-center">
-              <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-medium">Full Calendar Integration Coming Soon</h3>
-              <p className="text-muted-foreground">
-                Google Calendar sync, recurring appointments, and automated reminders will be available soon.
+              <Calendar className="mx-auto h-12 w-12 text-green-600" />
+              <h3 className="mt-4 text-lg font-medium text-green-900">Cal.com Integration Active</h3>
+              <p className="text-green-700">
+                Your AI agents can now book real appointments through Cal.com. Data updates automatically every 30 seconds.
               </p>
+              <div className="mt-4 text-sm text-green-600">
+                Last updated: {new Date().toLocaleTimeString()}
+              </div>
             </div>
           </CardContent>
         </Card>
