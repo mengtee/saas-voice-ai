@@ -419,6 +419,154 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
 
 
   /**
+   * AI Agent webhook endpoint for scheduling appointments
+   * Called by ElevenLabs AI agents during phone conversations
+   */
+  router.post('/ai-schedule', async (req: Request, res: Response) => {
+    try {
+      const { 
+        conversationId,
+        phoneNumber,
+        customerName,
+        customerEmail,
+        preferredDateTime,
+        meetingType = 'consultation',
+        notes,
+        agentId,
+        leadId,
+        campaignId
+      } = req.body;
+
+      console.log('AI Agent scheduling request:', req.body);
+
+      // Validate required fields
+      if (!phoneNumber || !customerName || !customerEmail || !preferredDateTime) {
+        return res.status(400).json({
+          success: false,
+          error: 'phoneNumber, customerName, customerEmail, and preferredDateTime are required'
+        });
+      }
+
+      // Find or create lead based on phone number
+      const leadQuery = `
+        SELECT * FROM leads 
+        WHERE phone_number = $1 
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `;
+      const leadResult = await appointmentService.query(leadQuery, [phoneNumber]);
+      
+      let lead = leadResult.rows[0];
+      let tenantId = lead?.tenant_id;
+
+      // If no existing lead, create one
+      if (!lead) {
+        const newLeadId = `lead_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        tenantId = 'default-tenant'; // You might want to determine this differently
+        
+        const createLeadQuery = `
+          INSERT INTO leads (id, tenant_id, name, phone_number, email, status, source, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, 'appointment_requested', 'ai_agent', NOW(), NOW())
+          RETURNING *
+        `;
+        
+        const newLeadResult = await appointmentService.query(createLeadQuery, [
+          newLeadId, tenantId, customerName, phoneNumber, customerEmail
+        ]);
+        lead = newLeadResult.rows[0];
+      } else {
+        // Update existing lead status and info
+        const updateLeadQuery = `
+          UPDATE leads 
+          SET name = COALESCE($1, name), 
+              email = COALESCE($2, email),
+              status = 'appointment_requested',
+              updated_at = NOW()
+          WHERE id = $3
+        `;
+        await appointmentService.query(updateLeadQuery, [customerName, customerEmail, lead.id]);
+      }
+
+      // Determine event type based on meeting type
+      const eventTypeId = meetingType === 'demo' ? '1' : '2';
+
+      // Book through Cal.com
+      const bookingResult = await appointmentService.bookCalComAppointment({
+        eventTypeId: parseInt(eventTypeId),
+        start: preferredDateTime,
+        attendee: {
+          name: customerName,
+          email: customerEmail,
+          timeZone: 'UTC'
+        },
+        title: `${meetingType === 'demo' ? 'Product Demo' : 'Consultation'} - ${customerName}`,
+        description: `AI-scheduled ${meetingType}. Phone: ${phoneNumber}. Notes: ${notes || 'No additional notes'}`,
+        location: 'Google Meet'
+      });
+
+      if (!bookingResult.success || !bookingResult.booking) {
+        // Update lead status to appointment_failed
+        await appointmentService.query(
+          `UPDATE leads SET status = 'appointment_failed', updated_at = NOW() WHERE id = $1`,
+          [lead.id]
+        );
+        
+        return res.status(400).json({
+          success: false,
+          error: bookingResult.error || 'Failed to book appointment with Cal.com'
+        });
+      }
+
+      // Sync with local database
+      const syncResult = await appointmentService.syncCalComBooking(
+        bookingResult.booking,
+        tenantId,
+        lead.id,
+        campaignId,
+        conversationId
+      );
+
+      // Update lead status to appointment_scheduled
+      await appointmentService.query(
+        `UPDATE leads SET status = 'appointment_scheduled', updated_at = NOW() WHERE id = $1`,
+        [lead.id]
+      );
+
+      // If part of a campaign, update campaign stats
+      if (campaignId) {
+        await appointmentService.query(
+          `UPDATE campaigns SET appointments_scheduled = COALESCE(appointments_scheduled, 0) + 1, updated_at = NOW() WHERE id = $1`,
+          [campaignId]
+        );
+      }
+
+      // Success response for AI agent
+      const meetingUrl = bookingResult.booking.references?.find(ref => ref.type === 'conferencing')?.meetingUrl;
+      const scheduledTime = new Date(bookingResult.booking.startTime);
+
+      res.json({
+        success: true,
+        data: {
+          appointmentId: syncResult.success ? syncResult.appointment?.id : null,
+          calcomBookingId: bookingResult.booking.uid,
+          leadId: lead.id,
+          scheduledTime: bookingResult.booking.startTime,
+          meetingUrl: meetingUrl,
+          confirmationSent: true,
+          message: `Appointment scheduled for ${customerName} on ${scheduledTime.toLocaleDateString()} at ${scheduledTime.toLocaleTimeString()}. Meeting link: ${meetingUrl || 'Will be provided via email'}`
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in AI appointment scheduling:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to schedule appointment'
+      });
+    }
+  });
+
+  /**
    * Webhook endpoint for Cal.com events (for future use)
    */
   router.post('/webhook', async (req: Request, res: Response) => {

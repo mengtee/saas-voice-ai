@@ -106,7 +106,7 @@ export interface CalComBookingResponse {
 }
 
 export class AppointmentService extends BaseService {
-  private calComApiUrl = 'https://api.cal.com/v2';
+  private calComApiUrl = 'https://api.cal.com/v1';
   private calComApiKey: string;
 
   constructor(pool: Pool) {
@@ -185,15 +185,18 @@ export class AppointmentService extends BaseService {
       }
 
       const url = new URL(`${this.calComApiUrl}/slots`);
+      url.searchParams.append('apiKey', this.calComApiKey);  // v1 uses apiKey in query
       url.searchParams.append('eventTypeId', eventTypeId);
-      url.searchParams.append('startTime', startDate);
-      url.searchParams.append('endTime', endDate);
+      url.searchParams.append('startTime', startDate);  // v1 uses startTime/endTime
+      url.searchParams.append('endTime', endDate);      
       url.searchParams.append('timeZone', timezone);
+
+      console.log('🔍 DEBUG: Cal.com API v1 call details:');
+      console.log('URL:', url.toString().replace(this.calComApiKey, 'API_KEY_HIDDEN'));
 
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.calComApiKey}`,
           'Content-Type': 'application/json'
         }
       });
@@ -205,7 +208,24 @@ export class AppointmentService extends BaseService {
       }
 
       const data = await response.json();
-      return { success: true, slots: data.slots || [] };
+      console.log('🔍 DEBUG: Cal.com API v1 response:', JSON.stringify(data, null, 2));
+      
+      // Cal.com v1 returns slots organized by date
+      const slots: any[] = [];
+      if (data.slots) {
+        // Flatten the date-organized slots into a single array
+        Object.keys(data.slots).forEach(date => {
+          const dateslots = data.slots[date] || [];
+          dateslots.forEach((slot: any) => {
+            slots.push({
+              start: slot.time,
+              date: date
+            });
+          });
+        });
+      }
+      
+      return { success: true, slots };
     } catch (error) {
       console.error('Error getting available slots:', error);
       return { success: false, error: 'Failed to get available slots' };
@@ -221,13 +241,29 @@ export class AppointmentService extends BaseService {
         return { success: false, error: 'Cal.com API key not configured' };
       }
 
+      // Transform our booking data to match Cal.com v2 API schema
+      const calComPayload = {
+        start: bookingData.start,
+        eventTypeId: parseInt(bookingData.eventTypeId.toString()),
+        attendee: {
+          name: bookingData.attendee.name,
+          email: bookingData.attendee.email,
+          timeZone: bookingData.attendee.timeZone || 'UTC'
+        },
+        ...(bookingData.title && { title: bookingData.title }),
+        ...(bookingData.description && { description: bookingData.description }),
+        ...(bookingData.location && { location: { type: bookingData.location } }),
+        ...(bookingData.end && { end: bookingData.end })
+      };
+
       const response = await fetch(`${this.calComApiUrl}/bookings`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.calComApiKey}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'cal-api-version': '2024-08-13' 
         },
-        body: JSON.stringify(bookingData)
+        body: JSON.stringify(calComPayload)
       });
 
       if (!response.ok) {
@@ -236,8 +272,14 @@ export class AppointmentService extends BaseService {
         return { success: false, error: `Cal.com booking error: ${response.status}` };
       }
 
-      const booking = await response.json();
-      return { success: true, booking };
+      const responseData = await response.json();
+      
+      // Cal.com v2 response structure
+      if (responseData.status === 'success' && responseData.data) {
+        return { success: true, booking: responseData.data };
+      } else {
+        return { success: false, error: 'Unexpected response format from Cal.com' };
+      }
     } catch (error) {
       console.error('Error booking appointment:', error);
       return { success: false, error: 'Failed to book appointment' };
@@ -386,7 +428,8 @@ export class AppointmentService extends BaseService {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${this.calComApiKey}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'cal-api-version': '2024-08-13'  // Required for Cal.com API v2
         },
         body: JSON.stringify({ reason: reason || 'Cancelled by system' })
       });
@@ -397,7 +440,14 @@ export class AppointmentService extends BaseService {
         return { success: false, error: `Cal.com cancellation error: ${response.status}` };
       }
 
-      return { success: true };
+      const responseData = await response.json();
+      
+      // Check for v2 response format
+      if (responseData.status === 'success') {
+        return { success: true };
+      } else {
+        return { success: false, error: responseData.error || 'Failed to cancel booking' };
+      }
     } catch (error) {
       console.error('Error cancelling Cal.com booking:', error);
       return { success: false, error: 'Failed to cancel booking' };

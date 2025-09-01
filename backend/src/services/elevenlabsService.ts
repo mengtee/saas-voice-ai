@@ -213,11 +213,6 @@ export class ElevenLabsService {
         recipients: recipients
       };
 
-      console.log('ElevenLabs batch calling request body:', JSON.stringify(requestBody, null, 2));
-      console.log('Environment variables check:');
-      console.log('- ELEVENLABS_AGENT_ID:', process.env.ELEVENLABS_AGENT_ID ? 'SET' : 'NOT SET');
-      console.log('- ELEVENLABS_PHONE_NUMBER_ID:', process.env.ELEVENLABS_PHONE_NUMBER_ID ? 'SET' : 'NOT SET');
-
       const response = await axios.post(
         `${this.baseUrl}/convai/batch-calling/submit`,
         requestBody,
@@ -234,14 +229,7 @@ export class ElevenLabsService {
         batchId: response.data.batch_id || response.data.id
       };
     } catch (error) {
-      const axiosError = error as AxiosError;
-      console.error('=== ElevenLabs API Error Details ===');
-      console.error('Status:', axiosError.response?.status);
-      console.error('Status Text:', axiosError.response?.statusText);
-      console.error('Response Data:', JSON.stringify(axiosError.response?.data, null, 2));
-      console.error('Request Body was:', JSON.stringify(requestBody, null, 2));
-      console.error('=====================================');
-      
+      const axiosError = error as AxiosError;  
       return {
         success: false,
         error: (axiosError.response?.data as any)?.detail || axiosError.message || 'Unknown error'
