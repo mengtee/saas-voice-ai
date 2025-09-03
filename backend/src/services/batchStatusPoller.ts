@@ -213,15 +213,15 @@ export class BatchStatusPoller extends BaseService {
         if (recipient.phone_number && recipient.status) {
           const updateCallQuery = `
             UPDATE campaign_calls 
-            SET status = $1,
+            SET status = $1::varchar,
                 conversation_id = $2,
-                completed_at = CASE WHEN $1 IN ('completed', 'failed') THEN NOW() ELSE completed_at END,
+                completed_at = CASE WHEN $1::varchar IN ('completed', 'failed') THEN NOW() ELSE completed_at END,
                 updated_at = NOW()
             WHERE campaign_id = $3 AND phone_number = $4
           `;
 
           await this.query(updateCallQuery, [
-            recipient.status,
+            String(recipient.status),
             recipient.conversation_id || null,
             campaignId,
             recipient.phone_number

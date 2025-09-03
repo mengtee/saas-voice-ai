@@ -193,13 +193,20 @@ export class ElevenLabsService {
           phone_number: phoneNumber
         };
         
-        // Add dynamic variables only if lead name exists
-        if (customData.leads && customData.leads[index] && customData.leads[index].name) {
-          recipient.conversation_initiation_client_data = {
-            dynamic_variables: {
-              name: customData.leads[index].name
-            }
-          };
+        // Add dynamic variables only if lead data exists
+        if (customData.leads && customData.leads[index]) {
+          const lead = customData.leads[index];
+          const dynamicVariables: Record<string, string> = {};
+          
+          if (lead.name) dynamicVariables.name = lead.name;
+          if (lead.email) dynamicVariables.email = lead.email;
+          if (lead.purpose) dynamicVariables.purpose = lead.purpose;
+          
+          if (Object.keys(dynamicVariables).length > 0) {
+            recipient.conversation_initiation_client_data = {
+              dynamic_variables: dynamicVariables
+            };
+          }
         }
         
         return recipient;

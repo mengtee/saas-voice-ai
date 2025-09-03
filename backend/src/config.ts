@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 export type Env = "dev" | "staging" | "production";
 
 export interface Config{
@@ -8,6 +11,7 @@ export interface Config{
     twilioAccountSid: string;
     twilioAuthToken: string;
     twilioPhoneNumber: string;
+    calComApiKey: string;
     port: number;
     jwtSecret: string;
     jwtExpiresIn: string;
@@ -23,6 +27,7 @@ export const loadConfig = async (): Promise<Config> => {
         twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || "",
         twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || "",
         twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER || "",
+        calComApiKey: process.env.CALCOM_API_KEY || "",
         port: process.env.PORT ? parseInt(process.env.PORT) : 3000,
         jwtSecret: process.env.JWT_SECRET || "",
         jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",

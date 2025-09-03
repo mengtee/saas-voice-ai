@@ -1,5 +1,6 @@
 import { BaseService } from './base';
 import { Pool } from 'pg';
+import { Config } from '../config';
 
 export interface Appointment {
   id: string;
@@ -88,8 +89,8 @@ export interface CalComBookingResponse {
   uid: string;
   title: string;
   description?: string;
-  startTime: string;
-  endTime: string;
+  start: string;
+  end: string;
   attendees: {
     name: string;
     email: string;
@@ -97,7 +98,7 @@ export interface CalComBookingResponse {
   }[];
   location?: string;
   status: string;
-  references: {
+  references?: {
     type: string;
     uid: string;
     meetingUrl?: string;
@@ -106,12 +107,14 @@ export interface CalComBookingResponse {
 }
 
 export class AppointmentService extends BaseService {
-  private calComApiUrl = 'https://api.cal.com/v1';
+  private calComApiUrl = 'https://api.cal.com';
   private calComApiKey: string;
 
-  constructor(pool: Pool) {
+  constructor(pool: Pool, config?: Config) {
     super({ pool });
-    this.calComApiKey = process.env.CALCOM_API_KEY || '';
+    this.calComApiKey = config?.calComApiKey || '';
+    console.log('🔍 Cal.com API Key loaded:', this.calComApiKey ? 'YES' : 'NO');
+    console.log('🔍 Raw API Key:', this.calComApiKey ? this.calComApiKey.substring(0, 20) + '...' : 'EMPTY');
   }
 
   /**
@@ -151,7 +154,7 @@ export class AppointmentService extends BaseService {
         data.attendee_phone || null,
         data.start_time,
         data.end_time,
-        data.timezone || 'UTC',
+        data.timezone || 'Asia/Kuala_Lumpur',
         data.duration_minutes || 30,
         data.status || 'scheduled',
         data.booking_status || 'pending',
@@ -178,21 +181,18 @@ export class AppointmentService extends BaseService {
   /**
    * Get available time slots from Cal.com
    */
-  async getAvailableSlots(eventTypeId: string, startDate: string, endDate: string, timezone = 'UTC'): Promise<{ success: boolean; slots?: any[]; error?: string }> {
+  async getAvailableSlots(eventTypeId: string, startDate: string, endDate: string, timezone = 'Asia/Kuala_Lumpur'): Promise<{ success: boolean; slots?: any[]; error?: string }> {
     try {
       if (!this.calComApiKey) {
         return { success: false, error: 'Cal.com API key not configured' };
       }
 
-      const url = new URL(`${this.calComApiUrl}/slots`);
+      const url = new URL(`${this.calComApiUrl}/v1/slots`);
       url.searchParams.append('apiKey', this.calComApiKey);  // v1 uses apiKey in query
       url.searchParams.append('eventTypeId', eventTypeId);
       url.searchParams.append('startTime', startDate);  // v1 uses startTime/endTime
       url.searchParams.append('endTime', endDate);      
       url.searchParams.append('timeZone', timezone);
-
-      console.log('🔍 DEBUG: Cal.com API v1 call details:');
-      console.log('URL:', url.toString().replace(this.calComApiKey, 'API_KEY_HIDDEN'));
 
       const response = await fetch(url.toString(), {
         method: 'GET',
@@ -208,7 +208,6 @@ export class AppointmentService extends BaseService {
       }
 
       const data = await response.json();
-      console.log('🔍 DEBUG: Cal.com API v1 response:', JSON.stringify(data, null, 2));
       
       // Cal.com v1 returns slots organized by date
       const slots: any[] = [];
@@ -248,24 +247,23 @@ export class AppointmentService extends BaseService {
         attendee: {
           name: bookingData.attendee.name,
           email: bookingData.attendee.email,
-          timeZone: bookingData.attendee.timeZone || 'UTC'
+          timeZone: bookingData.attendee.timeZone || 'Asia/Kuala_Lumpur'
         },
-        ...(bookingData.title && { title: bookingData.title }),
-        ...(bookingData.description && { description: bookingData.description }),
-        ...(bookingData.location && { location: { type: bookingData.location } }),
-        ...(bookingData.end && { end: bookingData.end })
+        ...(bookingData.location && { location: bookingData.location })
       };
 
-      const response = await fetch(`${this.calComApiUrl}/bookings`, {
+      const response = await fetch(`${this.calComApiUrl}/v2/bookings`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.calComApiKey}`,
+          'cal-api-version': '2024-08-13',
           'Content-Type': 'application/json',
-          'cal-api-version': '2024-08-13' 
+          'Authorization': `Bearer ${this.calComApiKey}`
         },
         body: JSON.stringify(calComPayload)
       });
 
+      console.log("this is the api key ", this.calComApiKey)
+      console.log("this is the response ", response)
       if (!response.ok) {
         const errorData = await response.text();
         console.error('Cal.com booking error:', response.status, errorData);
@@ -302,10 +300,10 @@ export class AppointmentService extends BaseService {
         description: calBooking.description,
         attendee_name: calBooking.attendees[0]?.name || '',
         attendee_email: calBooking.attendees[0]?.email || '',
-        start_time: calBooking.startTime,
-        end_time: calBooking.endTime,
-        timezone: calBooking.attendees[0]?.timeZone || 'UTC',
-        duration_minutes: Math.round((new Date(calBooking.endTime).getTime() - new Date(calBooking.startTime).getTime()) / (1000 * 60)),
+        start_time: calBooking.start,
+        end_time: calBooking.end,
+        timezone: calBooking.attendees[0]?.timeZone || 'Asia/Kuala_Lumpur',
+        duration_minutes: Math.round((new Date(calBooking.end).getTime() - new Date(calBooking.start).getTime()) / (1000 * 60)),
         status: 'scheduled',
         booking_status: calBooking.status === 'ACCEPTED' ? 'confirmed' : 'pending',
         location: calBooking.location,
@@ -424,12 +422,12 @@ export class AppointmentService extends BaseService {
         return { success: false, error: 'Cal.com API key not configured' };
       }
 
-      const response = await fetch(`${this.calComApiUrl}/bookings/${bookingUid}/cancel`, {
+      const response = await fetch(`${this.calComApiUrl}/v2/bookings/${bookingUid}/cancel`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${this.calComApiKey}`,
+          'cal-api-version': '2024-08-13',
           'Content-Type': 'application/json',
-          'cal-api-version': '2024-08-13'  // Required for Cal.com API v2
+          'Authorization': `Bearer ${this.calComApiKey}`
         },
         body: JSON.stringify({ reason: reason || 'Cancelled by system' })
       });
@@ -442,8 +440,8 @@ export class AppointmentService extends BaseService {
 
       const responseData = await response.json();
       
-      // Check for v2 response format
-      if (responseData.status === 'success') {
+      // Check for v1 response format
+      if (responseData && (responseData.id || responseData.message)) {
         return { success: true };
       } else {
         return { success: false, error: responseData.error || 'Failed to cancel booking' };

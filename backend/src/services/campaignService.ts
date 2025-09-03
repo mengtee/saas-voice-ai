@@ -57,8 +57,8 @@ export class CampaignService extends BaseService {
       const campaignId = `campaign_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       // Get lead phone numbers for batch calling
-      const leadsQuery = `SELECT id, phone_number, name FROM leads WHERE id = ANY($1) AND tenant_id = $2`;
-      const leads = await this.query<{ id: string; phone_number: string; name: string }>(leadsQuery, [leadIds, tenantId]);
+      const leadsQuery = `SELECT id, phone_number, name, email, purpose FROM leads WHERE id = ANY($1) AND tenant_id = $2`;
+      const leads = await this.query<{ id: string; phone_number: string; name: string; email: string; purpose: string }>(leadsQuery, [leadIds, tenantId]);
       
       if (leads.rows.length === 0) {
         return { success: false, error: 'No valid leads found' };

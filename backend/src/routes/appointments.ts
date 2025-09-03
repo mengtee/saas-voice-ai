@@ -6,21 +6,36 @@ import { AppointmentService } from '../services/appointmentService';
 
 export function createAppointmentsRoutes(pool: Pool, config: Config) {
   const router = Router();
-  const appointmentService = new AppointmentService(pool);
+  const appointmentService = new AppointmentService(pool, config);
   const authenticateToken = createAuthMiddleware(pool, config);
 
   /**
    * Get available time slots from Cal.com
    */
-  router.get('/slots', authenticateToken, async (req: Request, res: Response) => {
+  router.get('/slots', async (req: Request, res: Response) => {
     try {
-      const { eventTypeId, startDate, endDate, timezone = 'UTC' } = req.query;
+      const { eventTypeId, timezone = 'Asia/Kuala_Lumpur' } = req.query;
+      let { startDate, endDate } = req.query;
 
-      if (!eventTypeId || !startDate || !endDate) {
+      if (!eventTypeId) {
         return res.status(400).json({
           success: false,
-          error: 'eventTypeId, startDate, and endDate are required'
+          error: 'eventTypeId is required'
         });
+      }
+
+      // Default to current date if not provided
+      if (!startDate) {
+        const now = new Date();
+        startDate = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+      }
+
+      // Default endDate to 30 days from startDate if not provided
+      if (!endDate) {
+        const start = new Date(startDate as string);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 30);
+        endDate = end.toISOString().split('T')[0];
       }
 
       const result = await appointmentService.getAvailableSlots(
@@ -32,7 +47,6 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
 
       res.json(result);
     } catch (error) {
-      console.error('Error getting available slots:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to get available slots'
@@ -84,7 +98,7 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
         attendee: {
           name: attendeeName,
           email: attendeeEmail,
-          timeZone: attendeeTimeZone || 'UTC'
+          timeZone: attendeeTimeZone || 'Asia/Kuala_Lumpur'
         },
         title,
         description,
@@ -293,6 +307,82 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
   });
 
   /**
+   * AI Agent endpoint for getting current date/time
+   * Called by AI agents to get current date and calculate relative dates
+   */
+  router.get('/ai-datetime', async (req: Request, res: Response) => {
+    try {
+      const { 
+        operation = 'current',
+        days = '0',
+        weeks = '0',
+        months = '0',
+        timezone = 'Asia/Kuala_Lumpur'
+      } = req.query;
+
+      // Convert string params to numbers
+      const daysNum = parseInt(days as string) || 0;
+      const weeksNum = parseInt(weeks as string) || 0;
+      const monthsNum = parseInt(months as string) || 0;
+
+      // console.log('AI Agent datetime request:', req.query);
+
+      const now = new Date();
+      let targetDate = new Date(now);
+
+      // Perform date calculations based on operation
+      switch (operation) {
+        case 'add_days':
+          targetDate.setDate(now.getDate() + daysNum);
+          break;
+        case 'add_weeks':
+          targetDate.setDate(now.getDate() + (weeksNum * 7));
+          break;
+        case 'add_months':
+          targetDate.setMonth(now.getMonth() + monthsNum);
+          break;
+        case 'current':
+        default:
+          // targetDate is already set to now
+          break;
+      }
+
+      const result = {
+        success: true,
+        data: {
+          operation,
+          startDate: now.toISOString().split('T')[0],
+          startDateTime: now.toISOString(),
+          startTime: now.toTimeString().split(' ')[0],
+          endDate: targetDate.toISOString().split('T')[0],
+          endDateTime: targetDate.toISOString(),
+          timezone: {
+            name: timezone,
+            startDate: new Date(now.toLocaleString('en-US', { timeZone: timezone as string })).toISOString().split('T')[0],
+            startTime: now.toLocaleTimeString('en-GB', { timeZone: timezone as string, hour12: false }),
+            endDate: new Date(targetDate.toLocaleString('en-US', { timeZone: timezone as string })).toISOString().split('T')[0],
+            endTime: targetDate.toLocaleTimeString('en-GB', { timeZone: timezone as string, hour12: false })
+          },
+          timestamp: now.getTime(),
+          calculations: {
+            days_added: daysNum,
+            weeks_added: weeksNum,
+            months_added: monthsNum
+          }
+        }
+      };
+
+      res.json(result);
+    } catch (error) {
+      console.error('Error in AI datetime request:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get datetime information'
+      });
+    }
+  });
+
+  /**
    * Get a specific appointment
    */
   router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
@@ -430,6 +520,7 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
         customerName,
         customerEmail,
         preferredDateTime,
+        customerTimezone = 'Asia/Kuala_Lumpur',
         meetingType = 'consultation',
         notes,
         agentId,
@@ -437,10 +528,11 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
         campaignId
       } = req.body;
 
-      console.log('AI Agent scheduling request:', req.body);
+      // console.log('AI Agent scheduling request:', req.body);
 
       // Validate required fields
       if (!phoneNumber || !customerName || !customerEmail || !preferredDateTime) {
+        console.error('❌ Missing required fields:', { phoneNumber: !!phoneNumber, customerName: !!customerName, customerEmail: !!customerEmail, preferredDateTime: !!preferredDateTime });
         return res.status(400).json({
           success: false,
           error: 'phoneNumber, customerName, customerEmail, and preferredDateTime are required'
@@ -461,12 +553,12 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
 
       // If no existing lead, create one
       if (!lead) {
-        const newLeadId = `lead_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const newLeadId = `lead_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
         tenantId = 'default-tenant'; // You might want to determine this differently
         
         const createLeadQuery = `
-          INSERT INTO leads (id, tenant_id, name, phone_number, email, status, source, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, 'appointment_requested', 'ai_agent', NOW(), NOW())
+          INSERT INTO leads (id, tenant_id, date, name, phone_number, email, status, created_at, updated_at)
+          VALUES ($1, $2, NOW(), $3, $4, $5, 'scheduled', NOW(), NOW())
           RETURNING *
         `;
         
@@ -480,7 +572,7 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
           UPDATE leads 
           SET name = COALESCE($1, name), 
               email = COALESCE($2, email),
-              status = 'appointment_requested',
+              status = 'scheduled',
               updated_at = NOW()
           WHERE id = $3
         `;
@@ -488,26 +580,29 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
       }
 
       // Determine event type based on meeting type
-      const eventTypeId = meetingType === 'demo' ? '1' : '2';
+      const eventTypeId = meetingType === 'demo' ? '3207916' : '3207916';
 
       // Book through Cal.com
+      // console.log(`🔍 Attempting to book Cal.com appointment for ${customerName} at ${preferredDateTime}`);
       const bookingResult = await appointmentService.bookCalComAppointment({
         eventTypeId: parseInt(eventTypeId),
         start: preferredDateTime,
         attendee: {
           name: customerName,
           email: customerEmail,
-          timeZone: 'UTC'
+          timeZone: customerTimezone
         },
         title: `${meetingType === 'demo' ? 'Product Demo' : 'Consultation'} - ${customerName}`,
         description: `AI-scheduled ${meetingType}. Phone: ${phoneNumber}. Notes: ${notes || 'No additional notes'}`,
         location: 'Google Meet'
       });
 
+      console.log(`🔍 Cal.com booking result:`, JSON.stringify(bookingResult, null, 2));
+
       if (!bookingResult.success || !bookingResult.booking) {
-        // Update lead status to appointment_failed
+        // Update lead status to failed
         await appointmentService.query(
-          `UPDATE leads SET status = 'appointment_failed', updated_at = NOW() WHERE id = $1`,
+          `UPDATE leads SET status = 'failed', updated_at = NOW() WHERE id = $1`,
           [lead.id]
         );
         
@@ -526,9 +621,9 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
         conversationId
       );
 
-      // Update lead status to appointment_scheduled
+      // Update lead status to scheduled
       await appointmentService.query(
-        `UPDATE leads SET status = 'appointment_scheduled', updated_at = NOW() WHERE id = $1`,
+        `UPDATE leads SET status = 'scheduled', updated_at = NOW() WHERE id = $1`,
         [lead.id]
       );
 
@@ -542,7 +637,7 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
 
       // Success response for AI agent
       const meetingUrl = bookingResult.booking.references?.find(ref => ref.type === 'conferencing')?.meetingUrl;
-      const scheduledTime = new Date(bookingResult.booking.startTime);
+      const scheduledTime = new Date(bookingResult.booking.start);
 
       res.json({
         success: true,
@@ -550,7 +645,7 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
           appointmentId: syncResult.success ? syncResult.appointment?.id : null,
           calcomBookingId: bookingResult.booking.uid,
           leadId: lead.id,
-          scheduledTime: bookingResult.booking.startTime,
+          scheduledTime: bookingResult.booking.start,
           meetingUrl: meetingUrl,
           confirmationSent: true,
           message: `Appointment scheduled for ${customerName} on ${scheduledTime.toLocaleDateString()} at ${scheduledTime.toLocaleTimeString()}. Meeting link: ${meetingUrl || 'Will be provided via email'}`
@@ -573,7 +668,7 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
     try {
       // TODO: Implement webhook handling for Cal.com events
       // This will allow real-time updates from Cal.com
-      console.log('Cal.com webhook received:', req.body);
+      // console.log('Cal.com webhook received:', req.body);
       
       res.json({ success: true, message: 'Webhook received' });
     } catch (error) {
