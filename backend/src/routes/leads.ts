@@ -118,12 +118,12 @@ export const createLeadsRoutes = (pool: Pool, config: Config) => {
    */
   router.get("/", authenticateToken, async (req: Request, res: Response) => {
     try {
-      // Get tenant_id from authenticated user
-      const tenantId = req.user?.tenant_id;
-      if (!tenantId) {
+      // Get user context from authenticated user
+      const { tenant_id: tenantId, role: userRole, id: userId } = req.user || {};
+      if (!tenantId || !userRole || !userId) {
         return res.status(400).json({
           success: false,
-          error: "Tenant context missing"
+          error: "User context missing"
         });
       }
 
@@ -132,7 +132,7 @@ export const createLeadsRoutes = (pool: Pool, config: Config) => {
       const search = req.query.search as string || '';
       const status = req.query.status as string || '';
       
-      const result = await leadService.getLeads(tenantId, page, pageSize, search, status);
+      const result = await leadService.getLeads(tenantId, userRole, userId, page, pageSize, search, status);
 
       res.json({
         success: true,
@@ -231,12 +231,12 @@ export const createLeadsRoutes = (pool: Pool, config: Config) => {
       const { id } = req.params;
       const { name, phoneNumber, email, purpose, notes, status } = req.body;
 
-      // Get tenant_id from authenticated user
-      const tenantId = req.user?.tenant_id;
-      if (!tenantId) {
+      // Get user context from authenticated user
+      const { tenant_id: tenantId, role: userRole, id: userId } = req.user || {};
+      if (!tenantId || !userRole || !userId) {
         return res.status(400).json({
           success: false,
-          error: "Tenant context missing"
+          error: "User context missing"
         });
       }
 
@@ -257,7 +257,7 @@ export const createLeadsRoutes = (pool: Pool, config: Config) => {
       if (notes) updateData.notes = notes;
       if (status) updateData.status = status;
 
-      const result = await leadService.updateLead(id, updateData, tenantId);
+      const result = await leadService.updateLead(id, updateData, tenantId, userRole, userId);
 
       res.json({
         success: true,
@@ -284,17 +284,22 @@ export const createLeadsRoutes = (pool: Pool, config: Config) => {
       try {
         const { id } = req.params;
 
-        // Note: You'd implement the delete method in LeadService
-        // For now, we'll use a direct query
-        const result = await pool.query(
-          "DELETE FROM leads WHERE id = $1 RETURNING *",
-          [id]
-        );
+        // Get user context from authenticated user
+        const { tenant_id: tenantId, role: userRole, id: userId } = req.user || {};
+        if (!tenantId || !userRole || !userId) {
+          return res.status(400).json({
+            success: false,
+            error: "User context missing"
+          });
+        }
 
-        if (result.rows.length === 0) {
+        // Use leadService with role-based access control
+        const success = await leadService.deleteLead(id, tenantId, userRole, userId);
+
+        if (!success) {
           return res.status(404).json({
             success: false,
-            error: "Lead not found",
+            error: "Lead not found or access denied",
           });
         }
 

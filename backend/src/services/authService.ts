@@ -117,6 +117,7 @@ export class AuthService extends BaseService {
     try {
       // jwt.verify() checks if token signature is valid using secret
       // If valid, returns decoded payload
+      // normal token: headerEncoded.payloadEncoded.signatureEncoded (seperated by .)
       const decoded = (jwt as any).verify(token, this.config.jwtSecret) as JWTPayload;
 
       // Optional: Refresh user data from database (to get latest role changes)
@@ -177,17 +178,28 @@ export class AuthService extends BaseService {
     password: string;
     name: string;
     role: 'admin' | 'agent' | 'viewer';
+    tenantId?: string;
   }): Promise<Omit<User, 'password_hash'>> {
     try {
-      // Hash password before storing
-      const saltRounds = 12; // Higher = more secure but slower
+      // Hash password before storing (matching seed.ts)
+      const saltRounds = 10;
       const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
 
+      // Get tenant_id if not provided
+      let tenantId = userData.tenantId;
+      if (!tenantId) {
+        const tenantResult = await this.query('SELECT id FROM tenants ORDER BY created_at LIMIT 1');
+        if (tenantResult.rows.length === 0) {
+          throw new Error('No tenants found');
+        }
+        tenantId = tenantResult.rows[0].id;
+      }
+
       const result = await this.query<User>(
-        `INSERT INTO users (email, password_hash, name, role) 
-         VALUES ($1, $2, $3, $4) 
+        `INSERT INTO users (tenant_id, email, password_hash, name, role) 
+         VALUES ($1, $2, $3, $4, $5) 
          RETURNING *`,
-        [userData.email, hashedPassword, userData.name, userData.role]
+        [tenantId, userData.email, hashedPassword, userData.name, userData.role]
       );
 
       const user = result.rows[0];

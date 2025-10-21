@@ -371,6 +371,21 @@ class ApiClient {
     );
   }
 
+  async getRecentActivity(limit: number = 20): Promise<ApiResponse<Array<{
+    id: string;
+    type: 'lead_created' | 'call_completed' | 'appointment_booked' | 'campaign_started' | 'lead_updated';
+    title: string;
+    description: string;
+    timestamp: string;
+    entityId: string;
+    entityType: 'lead' | 'call' | 'appointment' | 'campaign';
+    metadata?: Record<string, unknown>;
+  }>>> {
+    return this.handleRequest(
+      this.client.get(`/api/statistics/recent-activity?limit=${limit}`)
+    );
+  }
+
   // Auth API
   async login(
     email: string,
@@ -564,6 +579,75 @@ class ApiClient {
     });
     
     return response.data;
+  }
+
+  // Recordings API
+  async getCallRecordings(limit: number = 50): Promise<ApiResponse<Array<{
+    id: string;
+    callId: string;
+    leadName: string;
+    phoneNumber: string;
+    duration: number;
+    recordingUrl?: string;
+    startTime: string;
+    endTime: string;
+    outcome: string;
+    agentId: string;
+  }>>> {
+    return this.handleRequest(
+      this.client.get(`/api/recordings/conversations?limit=${limit}`)
+    );
+  }
+
+  async getRecordingDetails(conversationId: string): Promise<ApiResponse<{
+    id: string;
+    callId: string;
+    leadName: string;
+    phoneNumber: string;
+    duration: number;
+    recordingUrl: string;
+    transcript: Array<{
+      id: string;
+      speaker: 'agent' | 'customer';
+      text: string;
+      startTime: number;
+      endTime: number;
+      confidence: number;
+      sentiment?: 'positive' | 'neutral' | 'negative';
+    }>;
+    startTime: string;
+    endTime: string;
+    outcome: string;
+    agentId: string;
+  }>> {
+    return this.handleRequest(
+      this.client.get(`/api/recordings/${conversationId}/details`)
+    );
+  }
+
+  async getRecordingAudio(conversationId: string): Promise<ApiResponse<{
+    audioUrl: string;
+  }>> {
+    return this.handleRequest(
+      this.client.get(`/api/recordings/${conversationId}/audio`)
+    );
+  }
+
+  async getCampaignRecordings(campaignId: string): Promise<ApiResponse<Array<{
+    id: string;
+    callId: string;
+    leadName: string;
+    phoneNumber: string;
+    duration: number;
+    recordingUrl: string;
+    startTime: string;
+    endTime: string;
+    outcome: string;
+    agentId: string;
+  }>>> {
+    return this.handleRequest(
+      this.client.get(`/api/recordings/campaign/${campaignId}`)
+    );
   }
 
 }

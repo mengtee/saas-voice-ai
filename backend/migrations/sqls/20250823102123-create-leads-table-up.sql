@@ -1,8 +1,8 @@
--- Create leads table
+-- Create leads table with agent privacy support
 CREATE TABLE IF NOT EXISTS leads (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
-    assigned_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    assigned_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- Made NOT NULL for agent privacy
     date TIMESTAMP WITH TIME ZONE NOT NULL,
     name VARCHAR(255) NOT NULL,
     phone_number VARCHAR(50) NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS leads (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Add indexes
+-- Add indexes optimized for agent privacy queries
 CREATE INDEX IF NOT EXISTS idx_leads_tenant_id ON leads(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_leads_assigned_user_id ON leads(assigned_user_id);
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
@@ -22,6 +22,9 @@ CREATE INDEX IF NOT EXISTS idx_leads_phone ON leads(phone_number);
 CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(created_at);
 CREATE INDEX IF NOT EXISTS idx_leads_tenant_status ON leads(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_leads_tenant_user ON leads(tenant_id, assigned_user_id);
+-- Additional index for agent-specific queries
+CREATE INDEX IF NOT EXISTS idx_leads_agent_status ON leads(assigned_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_leads_agent_created ON leads(assigned_user_id, created_at);
 
 -- Create trigger for leads table
 CREATE TRIGGER update_leads_updated_at 

@@ -62,13 +62,13 @@ async function seedUsers(tenants: any[]) {
   const saltRounds = 10;
   const adminPassword = await bcrypt.hash('admin123', saltRounds);
   const agentPassword = await bcrypt.hash('agent123', saltRounds);
-  const customPassword = await bcrypt.hash('pmlz5929', saltRounds);
+  const customPassword = await bcrypt.hash('test123', saltRounds);
   
   const users = [
     // Acme Sales Corp users
     {
       tenant_id: tenants[0].id,
-      email: 'mengtee1127@gmail.com',
+      email: 'mengtee1127@acme-sales.com',
       password: customPassword,
       name: 'Meng Tee (Admin)',
       role: 'admin'
@@ -189,7 +189,7 @@ async function seedSampleLeads(tenants: any[], users: any[]) {
     },
     {
       tenant_id: tenants[0]?.id,
-      assigned_user_id: null, // Unassigned
+      assigned_user_id: acmeUsers[1]?.id || techstartUsers[1]?.id || globalUsers[1]?.id, // Auto-assign to an agent
       date: new Date('2025-08-25').toISOString(),
       name: 'Lisa Wang',
       phone_number: '+1234567893',
@@ -224,7 +224,7 @@ async function seedSampleLeads(tenants: any[], users: any[]) {
     },
     {
       tenant_id: tenants[1]?.id,
-      assigned_user_id: null, // Unassigned
+      assigned_user_id: acmeUsers[1]?.id || techstartUsers[1]?.id || globalUsers[1]?.id, // Auto-assign to an agent
       date: new Date('2025-08-23').toISOString(),
       name: 'Chris Miller',
       phone_number: '+1555667892',
@@ -259,7 +259,7 @@ async function seedSampleLeads(tenants: any[], users: any[]) {
     },
     {
       tenant_id: tenants[2]?.id,
-      assigned_user_id: null, // Unassigned
+      assigned_user_id: acmeUsers[1]?.id || techstartUsers[1]?.id || globalUsers[1]?.id, // Auto-assign to an agent
       date: new Date('2025-08-24').toISOString(),
       name: 'Oliver Martinez',
       phone_number: '+44234567892',

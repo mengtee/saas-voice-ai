@@ -46,6 +46,25 @@ export class LeadService extends BaseService {
   }
 
   /**
+   * Build role-based WHERE clause for lead queries
+   * Admins see all tenant leads, agents see only their assigned leads
+   */
+  private buildRoleFilter(userRole: string, userId?: string): { clause: string; params: string[] } {
+    if (userRole === 'admin') {
+      return { clause: '', params: [] };
+    }
+    
+    if (!userId) {
+      throw new Error('User ID required for non-admin roles');
+    }
+    
+    return { 
+      clause: ' AND assigned_user_id = $', 
+      params: [userId] 
+    };
+  }
+
+  /**
    * Upload leads from CSV or Excel file
    */
   async uploadLeads(filePath: string, fileName: string, tenantId: string): Promise<UploadResult> {
@@ -316,15 +335,21 @@ export class LeadService extends BaseService {
   }
 
   /**
-   * Update an existing lead
+   * Update an existing lead with role-based access control
    */
-  async updateLead(leadId: string, updates: Partial<Lead>, tenantId: string): Promise<Lead> {
+  async updateLead(leadId: string, updates: Partial<Lead>, tenantId: string, userRole: string, userId?: string): Promise<Lead> {
     try {
-      // First, verify the lead exists and belongs to the tenant
-      const existingLead = await this.query<Lead>(
-        'SELECT * FROM leads WHERE id = $1 AND tenant_id = $2',
-        [leadId, tenantId]
-      );
+      // Build query with role-based access check
+      const roleFilter = this.buildRoleFilter(userRole, userId);
+      const accessQuery = roleFilter.clause 
+        ? 'SELECT * FROM leads WHERE id = $1 AND tenant_id = $2 AND assigned_user_id = $3'
+        : 'SELECT * FROM leads WHERE id = $1 AND tenant_id = $2';
+      
+      const accessParams = roleFilter.clause 
+        ? [leadId, tenantId, userId]
+        : [leadId, tenantId];
+
+      const existingLead = await this.query<Lead>(accessQuery, accessParams);
 
       if (existingLead.rows.length === 0) {
         throw new Error('Lead not found or access denied');
@@ -446,9 +471,12 @@ export class LeadService extends BaseService {
 
   /**
    * Get all leads with pagination, search, and filtering for a tenant
+   * Supports role-based access: admins see all, agents see only their assigned leads
    */
   async getLeads(
     tenantId: string, 
+    userRole: string,
+    userId?: string,
     page: number = 1, 
     pageSize: number = 50, 
     search: string = '', 
@@ -462,10 +490,18 @@ export class LeadService extends BaseService {
   }> {
     const offset = (page - 1) * pageSize;
 
-    // Build WHERE conditions
+    // Build WHERE conditions with role-based access
     const conditions: string[] = ['tenant_id = $1'];
     const params: any[] = [tenantId];
     let paramCounter = 2;
+
+    // Add role-based filtering
+    const roleFilter = this.buildRoleFilter(userRole, userId);
+    if (roleFilter.clause) {
+      conditions.push(`assigned_user_id = $${paramCounter}`);
+      params.push(...roleFilter.params);
+      paramCounter++;
+    }
 
     // Add search condition
     if (search.trim()) {
@@ -510,6 +546,89 @@ export class LeadService extends BaseService {
       page,
       pageSize,
       totalPages: Math.ceil(total / pageSize)
+    };
+  }
+
+  /**
+   * Get a single lead by ID with role-based access control
+   */
+  async getLeadById(leadId: string, tenantId: string, userRole: string, userId?: string): Promise<Lead | null> {
+    const roleFilter = this.buildRoleFilter(userRole, userId);
+    const query = roleFilter.clause 
+      ? 'SELECT * FROM leads WHERE id = $1 AND tenant_id = $2 AND assigned_user_id = $3'
+      : 'SELECT * FROM leads WHERE id = $1 AND tenant_id = $2';
+    
+    const params = roleFilter.clause 
+      ? [leadId, tenantId, userId]
+      : [leadId, tenantId];
+
+    const result = await this.query<Lead>(query, params);
+    return result.rows.length > 0 ? result.rows[0] : null;
+  }
+
+  /**
+   * Delete a lead with role-based access control
+   */
+  async deleteLead(leadId: string, tenantId: string, userRole: string, userId?: string): Promise<boolean> {
+    // First check if lead exists and user has access
+    const lead = await this.getLeadById(leadId, tenantId, userRole, userId);
+    if (!lead) {
+      throw new Error('Lead not found or access denied');
+    }
+
+    const result = await this.query(
+      'DELETE FROM leads WHERE id = $1 AND tenant_id = $2',
+      [leadId, tenantId]
+    );
+
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  /**
+   * Get lead statistics for role-based access
+   */
+  async getLeadStats(tenantId: string, userRole: string, userId?: string): Promise<{
+    total: number;
+    pending: number;
+    called: number;
+    scheduled: number;
+    completed: number;
+    failed: number;
+  }> {
+    const roleFilter = this.buildRoleFilter(userRole, userId);
+    const baseCondition = roleFilter.clause 
+      ? 'WHERE tenant_id = $1 AND assigned_user_id = $2'
+      : 'WHERE tenant_id = $1';
+    
+    const params = roleFilter.clause ? [tenantId, userId] : [tenantId];
+
+    const result = await this.query<{
+      total: string;
+      pending: string;
+      called: string;
+      scheduled: string;
+      completed: string;
+      failed: string;
+    }>(
+      `SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
+        COUNT(CASE WHEN status = 'called' THEN 1 END) as called,
+        COUNT(CASE WHEN status = 'scheduled' THEN 1 END) as scheduled,
+        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+       FROM leads ${baseCondition}`,
+      params
+    );
+
+    const stats = result.rows[0];
+    return {
+      total: parseInt(stats.total),
+      pending: parseInt(stats.pending),
+      called: parseInt(stats.called),
+      scheduled: parseInt(stats.scheduled),
+      completed: parseInt(stats.completed),
+      failed: parseInt(stats.failed),
     };
   }
 }

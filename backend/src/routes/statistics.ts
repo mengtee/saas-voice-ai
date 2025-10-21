@@ -15,15 +15,15 @@ export const createStatisticsRoutes = (pool: Pool, config: Config) => {
    */
   router.get("/dashboard", authenticateToken, async (req: Request, res: Response) => {
     try {
-      const tenantId = req.user?.tenant_id;
-      if (!tenantId) {
+      const { tenant_id: tenantId, role: userRole, id: userId } = req.user || {};
+      if (!tenantId || !userRole || !userId) {
         return res.status(400).json({
           success: false,
-          error: "Tenant context missing"
+          error: "User context missing"
         });
       }
 
-      const stats = await statisticsService.getDashboardStats(tenantId);
+      const stats = await statisticsService.getDashboardStats(tenantId, userRole, userId);
 
       res.json({
         success: true,
@@ -44,15 +44,15 @@ export const createStatisticsRoutes = (pool: Pool, config: Config) => {
    */
   router.get("/call-center", authenticateToken, async (req: Request, res: Response) => {
     try {
-      const tenantId = req.user?.tenant_id;
-      if (!tenantId) {
+      const { tenant_id: tenantId, role: userRole, id: userId } = req.user || {};
+      if (!tenantId || !userRole || !userId) {
         return res.status(400).json({
           success: false,
-          error: "Tenant context missing"
+          error: "User context missing"
         });
       }
 
-      const stats = await statisticsService.getCallCenterStats(tenantId);
+      const stats = await statisticsService.getCallCenterStats(tenantId, userRole, userId);
 
       res.json({
         success: true,
@@ -73,15 +73,15 @@ export const createStatisticsRoutes = (pool: Pool, config: Config) => {
    */
   router.get("/leads", authenticateToken, async (req: Request, res: Response) => {
     try {
-      const tenantId = req.user?.tenant_id;
-      if (!tenantId) {
+      const { tenant_id: tenantId, role: userRole, id: userId } = req.user || {};
+      if (!tenantId || !userRole || !userId) {
         return res.status(400).json({
           success: false,
-          error: "Tenant context missing"
+          error: "User context missing"
         });
       }
 
-      const stats = await statisticsService.getLeadStats(tenantId);
+      const stats = await statisticsService.getLeadStats(tenantId, userRole, userId);
 
       res.json({
         success: true,
@@ -102,15 +102,15 @@ export const createStatisticsRoutes = (pool: Pool, config: Config) => {
    */
   router.get("/active-calls", authenticateToken, async (req: Request, res: Response) => {
     try {
-      const tenantId = req.user?.tenant_id;
-      if (!tenantId) {
+      const { tenant_id: tenantId, role: userRole, id: userId } = req.user || {};
+      if (!tenantId || !userRole || !userId) {
         return res.status(400).json({
           success: false,
-          error: "Tenant context missing"
+          error: "User context missing"
         });
       }
 
-      const activeCalls = await statisticsService.getActiveCalls(tenantId);
+      const activeCalls = await statisticsService.getActiveCallsWithDetails(tenantId, userRole, userId);
 
       res.json({
         success: true,
@@ -131,16 +131,16 @@ export const createStatisticsRoutes = (pool: Pool, config: Config) => {
    */
   router.get("/call-history", authenticateToken, async (req: Request, res: Response) => {
     try {
-      const tenantId = req.user?.tenant_id;
-      if (!tenantId) {
+      const { tenant_id: tenantId, role: userRole, id: userId } = req.user || {};
+      if (!tenantId || !userRole || !userId) {
         return res.status(400).json({
           success: false,
-          error: "Tenant context missing"
+          error: "User context missing"
         });
       }
 
       const limit = parseInt(req.query.limit as string) || 10;
-      const callHistory = await statisticsService.getRecentCallHistory(tenantId, limit);
+      const callHistory = await statisticsService.getCallHistory(tenantId, userRole, userId, limit);
 
       res.json({
         success: true,
@@ -151,6 +151,36 @@ export const createStatisticsRoutes = (pool: Pool, config: Config) => {
       res.status(500).json({
         success: false,
         error: "Failed to fetch call history"
+      });
+    }
+  });
+
+  /**
+   * GET /api/statistics/recent-activity
+   * Get recent activity across all entities
+   */
+  router.get("/recent-activity", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { tenant_id: tenantId, role: userRole, id: userId } = req.user || {};
+      if (!tenantId || !userRole || !userId) {
+        return res.status(400).json({
+          success: false,
+          error: "User context missing"
+        });
+      }
+
+      const limit = parseInt(req.query.limit as string) || 20;
+      const recentActivity = await statisticsService.getRecentActivityFiltered(tenantId, userRole, userId, limit);
+
+      res.json({
+        success: true,
+        data: recentActivity
+      });
+    } catch (error: any) {
+      console.error("Recent activity error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch recent activity"
       });
     }
   });

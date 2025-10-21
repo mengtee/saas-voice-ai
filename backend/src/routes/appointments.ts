@@ -14,7 +14,7 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
    */
   router.get('/slots', async (req: Request, res: Response) => {
     try {
-      const { eventTypeId, timezone = 'Asia/Kuala_Lumpur' } = req.query;
+      const { eventTypeId } = req.query;
       let { startDate, endDate } = req.query;
 
       if (!eventTypeId) {
@@ -24,29 +24,42 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
         });
       }
 
-      // Default to current date if not provided
+      // Always use Malaysia timezone
+      const malaysiaTimezone = 'Asia/Kuala_Lumpur';
+      
+      // Default to current date in Malaysia timezone if not provided
       if (!startDate) {
         const now = new Date();
-        startDate = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+        const malaysiaTime = new Date(now.toLocaleString('en-US', { timeZone: malaysiaTimezone }));
+        const year = malaysiaTime.getFullYear();
+        const month = String(malaysiaTime.getMonth() + 1).padStart(2, '0');
+        const day = String(malaysiaTime.getDate()).padStart(2, '0');
+        startDate = `${year}-${month}-${day}`;
       }
 
       // Default endDate to 30 days from startDate if not provided
       if (!endDate) {
-        const start = new Date(startDate as string);
+        const start = new Date(startDate as string + 'T00:00:00+08:00'); // Malaysia timezone
         const end = new Date(start);
         end.setDate(start.getDate() + 30);
-        endDate = end.toISOString().split('T')[0];
+        const year = end.getFullYear();
+        const month = String(end.getMonth() + 1).padStart(2, '0');
+        const day = String(end.getDate()).padStart(2, '0');
+        endDate = `${year}-${month}-${day}`;
       }
+
+      console.log(`🔍 Getting slots for eventType ${eventTypeId} from ${startDate} to ${endDate} in ${malaysiaTimezone}`);
 
       const result = await appointmentService.getAvailableSlots(
         eventTypeId as string,
         startDate as string,
         endDate as string,
-        timezone as string
+        malaysiaTimezone
       );
 
       res.json(result);
     } catch (error) {
+      console.error('Error getting slots:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to get available slots'
@@ -325,49 +338,76 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
       const weeksNum = parseInt(weeks as string) || 0;
       const monthsNum = parseInt(months as string) || 0;
 
-      // console.log('AI Agent datetime request:', req.query);
-
+      // Always use Malaysia timezone for consistency
+      const malaysiaTimezone = 'Asia/Kuala_Lumpur';
+      
+      // Get current time in Malaysia timezone
       const now = new Date();
-      let targetDate = new Date(now);
+      const malaysiaTime = new Date(now.toLocaleString('en-US', { timeZone: malaysiaTimezone }));
+      let targetDate = new Date(malaysiaTime);
 
       // Perform date calculations based on operation
       switch (operation) {
         case 'add_days':
-          targetDate.setDate(now.getDate() + daysNum);
+          targetDate.setDate(malaysiaTime.getDate() + daysNum);
           break;
         case 'add_weeks':
-          targetDate.setDate(now.getDate() + (weeksNum * 7));
+          targetDate.setDate(malaysiaTime.getDate() + (weeksNum * 7));
           break;
         case 'add_months':
-          targetDate.setMonth(now.getMonth() + monthsNum);
+          targetDate.setMonth(malaysiaTime.getMonth() + monthsNum);
           break;
         case 'current':
         default:
-          // targetDate is already set to now
+          // targetDate is already set to malaysiaTime
           break;
       }
+
+      // Format dates in Malaysia timezone
+      const formatMalaysiaDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      const formatMalaysiaTime = (date: Date) => {
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+      };
+
+      const formatMalaysiaDateTime = (date: Date) => {
+        return `${formatMalaysiaDate(date)}T${formatMalaysiaTime(date)}:00+08:00`;
+      };
 
       const result = {
         success: true,
         data: {
           operation,
-          startDate: now.toISOString().split('T')[0],
-          startDateTime: now.toISOString(),
-          startTime: now.toTimeString().split(' ')[0],
-          endDate: targetDate.toISOString().split('T')[0],
-          endDateTime: targetDate.toISOString(),
+          startDate: formatMalaysiaDate(malaysiaTime),
+          startDateTime: formatMalaysiaDateTime(malaysiaTime),
+          startTime: formatMalaysiaTime(malaysiaTime),
+          endDate: formatMalaysiaDate(targetDate),
+          endDateTime: formatMalaysiaDateTime(targetDate),
           timezone: {
-            name: timezone,
-            startDate: new Date(now.toLocaleString('en-US', { timeZone: timezone as string })).toISOString().split('T')[0],
-            startTime: now.toLocaleTimeString('en-GB', { timeZone: timezone as string, hour12: false }),
-            endDate: new Date(targetDate.toLocaleString('en-US', { timeZone: timezone as string })).toISOString().split('T')[0],
-            endTime: targetDate.toLocaleTimeString('en-GB', { timeZone: timezone as string, hour12: false })
+            name: malaysiaTimezone,
+            startDate: formatMalaysiaDate(malaysiaTime),
+            startTime: formatMalaysiaTime(malaysiaTime),
+            endDate: formatMalaysiaDate(targetDate),
+            endTime: formatMalaysiaTime(targetDate)
           },
-          timestamp: now.getTime(),
+          timestamp: malaysiaTime.getTime(),
           calculations: {
             days_added: daysNum,
             weeks_added: weeksNum,
             months_added: monthsNum
+          },
+          debug: {
+            utcTime: now.toISOString(),
+            malaysiaTime: malaysiaTime.toISOString(),
+            timezoneOffset: malaysiaTime.getTimezoneOffset()
           }
         }
       };
@@ -553,17 +593,18 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
 
       // If no existing lead, create one
       if (!lead) {
-        const newLeadId = `lead_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-        tenantId = 'default-tenant'; // You might want to determine this differently
+        // Generate a proper UUID for tenant_id (you might want to determine this differently)
+        const defaultTenantUuid = '00000000-0000-0000-0000-000000000001';
+        tenantId = defaultTenantUuid;
         
         const createLeadQuery = `
-          INSERT INTO leads (id, tenant_id, date, name, phone_number, email, status, created_at, updated_at)
-          VALUES ($1, $2, NOW(), $3, $4, $5, 'scheduled', NOW(), NOW())
+          INSERT INTO leads (tenant_id, date, name, phone_number, email, status, created_at, updated_at)
+          VALUES ($1, NOW(), $2, $3, $4, 'scheduled', NOW(), NOW())
           RETURNING *
         `;
         
         const newLeadResult = await appointmentService.query(createLeadQuery, [
-          newLeadId, tenantId, customerName, phoneNumber, customerEmail
+          tenantId, customerName, phoneNumber, customerEmail
         ]);
         lead = newLeadResult.rows[0];
       } else {
@@ -582,18 +623,60 @@ export function createAppointmentsRoutes(pool: Pool, config: Config) {
       // Determine event type based on meeting type
       const eventTypeId = meetingType === 'demo' ? '3207916' : '3207916';
 
+      // Always use Malaysia timezone for consistency
+      const malaysiaTimezone = 'Asia/Kuala_Lumpur';
+      
+      // Validate that preferredDateTime is in the future (Malaysia time)
+      const now = new Date();
+      const malaysiaTime = new Date(now.toLocaleString('en-US', { timeZone: malaysiaTimezone }));
+      
+      // Parse preferredDateTime and ensure it's in Malaysia timezone
+      let requestedTime: Date;
+      try {
+        // If preferredDateTime doesn't have timezone info, assume Malaysia timezone
+        if (preferredDateTime.includes('T') && !preferredDateTime.includes('+') && !preferredDateTime.includes('Z')) {
+          requestedTime = new Date(preferredDateTime + '+08:00'); // Add Malaysia timezone offset
+        } else {
+          requestedTime = new Date(preferredDateTime);
+        }
+      } catch (error) {
+        console.error('❌ Invalid preferredDateTime format:', preferredDateTime);
+        return res.status(400).json({
+          success: false,
+          error: `Invalid preferredDateTime format: ${preferredDateTime}. Expected ISO 8601 format.`
+        });
+      }
+      
+      // Check if the requested time is in the future (with 5-minute buffer)
+      const fiveMinutesFromNow = new Date(malaysiaTime.getTime() + 5 * 60 * 1000);
+      if (requestedTime <= fiveMinutesFromNow) {
+        console.error('❌ Requested time is in the past or too soon:', {
+          requestedTime: requestedTime.toISOString(),
+          malaysiaTime: malaysiaTime.toISOString(),
+          fiveMinutesFromNow: fiveMinutesFromNow.toISOString(),
+          preferredDateTime
+        });
+        return res.status(400).json({
+          success: false,
+          error: `Cannot book appointment in the past or within 5 minutes. Requested: ${requestedTime.toLocaleString('en-US', { timeZone: malaysiaTimezone })}, Current Malaysia time: ${malaysiaTime.toLocaleString('en-US', { timeZone: malaysiaTimezone })}`
+        });
+      }
+
+      // Ensure we send the datetime in proper ISO format to Cal.com
+      const calComDateTime = requestedTime.toISOString();
+
       // Book through Cal.com
-      // console.log(`🔍 Attempting to book Cal.com appointment for ${customerName} at ${preferredDateTime}`);
+      console.log(`🔍 Attempting to book Cal.com appointment for ${customerName} at ${calComDateTime} (Malaysia time: ${requestedTime.toLocaleString('en-US', { timeZone: malaysiaTimezone })})`);
       const bookingResult = await appointmentService.bookCalComAppointment({
         eventTypeId: parseInt(eventTypeId),
-        start: preferredDateTime,
+        start: calComDateTime,
         attendee: {
           name: customerName,
           email: customerEmail,
-          timeZone: customerTimezone
+          timeZone: malaysiaTimezone // Always use Malaysia timezone
         },
         title: `${meetingType === 'demo' ? 'Product Demo' : 'Consultation'} - ${customerName}`,
-        description: `AI-scheduled ${meetingType}. Phone: ${phoneNumber}. Notes: ${notes || 'No additional notes'}`,
+        description: `AI-scheduled ${meetingType}. Phone: ${phoneNumber}. Notes: ${notes || 'No additional notes'}. Original request: ${preferredDateTime}`,
         location: 'Google Meet'
       });
 

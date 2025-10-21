@@ -10,6 +10,7 @@ import { createStatisticsRoutes } from "./routes/statistics";
 import { createCampaignsRoutes } from "./routes/campaigns";
 import { createAnalyticsRoutes } from "./routes/analytics";
 import { createAppointmentsRoutes } from "./routes/appointments";
+import { createRecordingsRoutes } from "./routes/recordings";
 import { Pool } from "pg";
 import { loadConfig } from "./config";
 import { BatchStatusPoller } from "./services/batchStatusPoller";
@@ -40,6 +41,7 @@ const main = async () => {
   const campaignsRoutes = createCampaignsRoutes(pool, config);
   const analyticsRoutes = createAnalyticsRoutes(pool, config);
   const appointmentsRoutes = createAppointmentsRoutes(pool, config);
+  const recordingsRoutes = createRecordingsRoutes(pool, config);
   
   app.use("/api/auth", authRoutes);
   app.use("/api/leads", leadsRoutes);
@@ -47,6 +49,7 @@ const main = async () => {
   app.use("/api/campaigns", campaignsRoutes);
   app.use("/api/analytics", analyticsRoutes);
   app.use("/api/appointments", appointmentsRoutes);
+  app.use("/api/recordings", recordingsRoutes);
   app.use("/api/twilio", twilioRoutes);
   app.use("/api/elevenlabs", elevenlabsRoutes);
 

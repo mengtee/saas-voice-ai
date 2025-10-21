@@ -17,9 +17,11 @@ import {
   VolumeX,
   SkipBack,
   SkipForward,
-  Search
+  Search,
+  RefreshCw
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { apiClient } from '@/services/api';
 
 interface CallRecording {
   id: string;
@@ -55,138 +57,138 @@ export function CallRecording({ callId, onClose }: CallRecordingProps) {
   const [selectedRecording, setSelectedRecording] = useState<CallRecording | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [volume, setVolume] = useState(1);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const fetchRecordings = useCallback(async () => {
+  const fetchRecordings = useCallback(async (isBackgroundRefresh = false) => {
     try {
-      setLoading(true);
+      if (isBackgroundRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       
-      const mockRecordings: CallRecording[] = [
-        {
-          id: 'rec_1',
-          callId: 'call_123',
-          leadName: 'John Smith',
-          phoneNumber: '+1234567890',
-          duration: 245,
-          recordingUrl: '/api/recordings/rec_1.wav',
-          startTime: '2024-08-27T10:00:00Z',
-          endTime: '2024-08-27T10:04:05Z',
-          outcome: 'appointment',
-          agentId: 'agent_5001k2a567kxeeds5cpbjn13jdt3',
-          transcript: [
-            {
-              id: 'seg_1',
-              speaker: 'agent',
-              text: 'Hello, this is Sarah from ABC Company. Am I speaking with John?',
-              startTime: 0,
-              endTime: 4.2,
-              confidence: 0.95,
-              sentiment: 'positive'
-            },
-            {
-              id: 'seg_2',
-              speaker: 'customer',
-              text: 'Yes, this is John. What can I do for you?',
-              startTime: 5.1,
-              endTime: 8.3,
-              confidence: 0.92,
-              sentiment: 'neutral'
-            },
-            {
-              id: 'seg_3',
-              speaker: 'agent',
-              text: 'I wanted to follow up on your inquiry about our new product line. Do you have a few minutes to discuss this?',
-              startTime: 9.0,
-              endTime: 15.8,
-              confidence: 0.97,
-              sentiment: 'positive'
-            },
-            {
-              id: 'seg_4',
-              speaker: 'customer',
-              text: 'Actually, yes! I was very interested in learning more about that. When would be a good time to schedule a demo?',
-              startTime: 16.2,
-              endTime: 23.5,
-              confidence: 0.94,
-              sentiment: 'positive'
-            }
-          ]
-        },
-        {
-          id: 'rec_2',
-          callId: 'call_124',
-          leadName: 'Sarah Johnson',
-          phoneNumber: '+1234567891',
-          duration: 180,
-          recordingUrl: '/api/recordings/rec_2.wav',
-          startTime: '2024-08-27T09:30:00Z',
-          endTime: '2024-08-27T09:33:00Z',
-          outcome: 'callback',
-          agentId: 'agent_5001k2a567kxeeds5cpbjn13jdt3',
-          transcript: [
-            {
-              id: 'seg_5',
-              speaker: 'agent',
-              text: 'Hi Sarah, this is Mike from XYZ Solutions.',
-              startTime: 0,
-              endTime: 3.1,
-              confidence: 0.98,
-              sentiment: 'positive'
-            },
-            {
-              id: 'seg_6',
-              speaker: 'customer',
-              text: 'Oh hi, I\'m actually in a meeting right now. Could you call me back later?',
-              startTime: 4.0,
-              endTime: 8.9,
-              confidence: 0.89,
-              sentiment: 'neutral'
-            }
-          ]
-        }
-      ];
+      // Fetch real recordings from ElevenLabs via backend
+      const response = await apiClient.getCallRecordings(50);
+      
+      if (!response.success || !response.data) {
+        console.error('Failed to fetch recordings:', response);
+        setRecordings([]);
+        return;
+      }
 
+      // Transform API response to match component interface
+      const transformedRecordings: CallRecording[] = response.data.map(recording => ({
+        id: recording.id,
+        callId: recording.callId,
+        leadName: recording.leadName,
+        phoneNumber: recording.phoneNumber,
+        duration: recording.duration,
+        recordingUrl: recording.recordingUrl,
+        startTime: recording.startTime,
+        endTime: recording.endTime,
+        outcome: recording.outcome,
+        agentId: recording.agentId,
+        transcript: [] // Will be loaded when recording is selected
+      }));
+
+      // Filter by specific callId if provided
       const filteredRecordings = callId 
-        ? mockRecordings.filter(rec => rec.callId === callId)
-        : mockRecordings;
+        ? transformedRecordings.filter(rec => rec.callId === callId)
+        : transformedRecordings;
 
       setRecordings(filteredRecordings);
       
       if (filteredRecordings.length > 0) {
-        setSelectedRecording(filteredRecordings[0]);
+        // Load detailed transcript for first recording
+        await loadRecordingDetails(filteredRecordings[0].id);
       }
     } catch (error) {
       console.error('Failed to fetch recordings:', error);
+      setRecordings([]);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }, [callId]);
 
+  const loadRecordingDetails = async (recordingId: string) => {
+    try {
+      const response = await apiClient.getRecordingDetails(recordingId);
+      
+      if (response.success && response.data) {
+        // Find the original recording from the list to preserve its display data
+        const originalRecording = recordings.find(r => r.id === recordingId);
+        
+        if (originalRecording) {
+          // Keep the original recording EXACTLY as is, only add transcript
+          const detailedRecording: CallRecording = {
+            ...originalRecording, // Keep EVERYTHING from original
+            transcript: response.data.transcript || [] // ONLY update transcript
+          };
+          
+          setSelectedRecording(detailedRecording);
+          
+          // Update the transcript in the list while preserving display data
+          setRecordings(prev => 
+            prev.map(rec => 
+              rec.id === recordingId 
+                ? { ...rec, transcript: response.data?.transcript || [] }
+                : rec
+            )
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load recording details:', error);
+    }
+  };
+
+  const loadAudioUrl = async (conversationId: string) => {
+    try {
+      console.log('Loading audio URL for:', conversationId);
+      const response = await apiClient.getRecordingAudio(conversationId);
+      console.log('Audio URL response:', response);
+      if (response.success && response.data?.audioUrl) {
+        console.log('Setting audio URL:', response.data.audioUrl);
+        setAudioUrl(response.data.audioUrl);
+      } else {
+        console.error('No audio URL in response:', response);
+      }
+    } catch (error) {
+      console.error('Failed to load audio URL:', error);
+    }
+  };
+
   useEffect(() => {
     fetchRecordings();
+
+    // Set up polling for real-time updates every 30 seconds
+    const pollingInterval = setInterval(() => {
+      fetchRecordings(true);
+    }, 30000);
+
+    return () => clearInterval(pollingInterval);
   }, [callId, fetchRecordings]);
 
+  // Load audio URL when recording is selected
   useEffect(() => {
-    if (selectedRecording && audioRef.current) {
-      const audio = audioRef.current;
-      
-      const updateTime = () => setCurrentTime(audio.currentTime);
-      const handleEnded = () => setIsPlaying(false);
-
-      audio.addEventListener('timeupdate', updateTime);
-      audio.addEventListener('ended', handleEnded);
-
-      return () => {
-        audio.removeEventListener('timeupdate', updateTime);
-        audio.removeEventListener('ended', handleEnded);
-      };
+    if (selectedRecording) {
+      setAudioUrl(null); // Reset audio URL first
+      setCurrentTime(0); // Reset current time
+      setAudioDuration(0); // Reset audio duration
+      loadAudioUrl(selectedRecording.id);
     }
   }, [selectedRecording]);
+
+  // Audio event handlers are now handled directly on the audio element
 
   const togglePlayback = () => {
     if (audioRef.current && selectedRecording) {
@@ -272,16 +274,30 @@ export function CallRecording({ callId, onClose }: CallRecordingProps) {
         </CardHeader>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Recording List */}
-        <Card>
+        <Card className="h-[calc(100vh-12rem)] flex flex-col">
           <CardHeader>
-            <CardTitle>Recordings</CardTitle>
-            <CardDescription>Select a recording to play</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Recordings</CardTitle>
+                <CardDescription>Select a recording to play</CardDescription>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => fetchRecordings()}
+                disabled={loading || isRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-1 ${(loading || isRefreshing) ? 'animate-spin' : ''}`} />
+                {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {loading ? (
+          <CardContent className="p-0 flex-1 overflow-hidden">
+            <ScrollArea className="h-full p-6">
+              <div className="space-y-3">
+                {loading ? (
                 <div className="text-center py-4">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
                   <p className="text-sm text-muted-foreground mt-2">Loading recordings...</p>
@@ -300,7 +316,13 @@ export function CallRecording({ callId, onClose }: CallRecordingProps) {
                         ? 'border-blue-500 bg-blue-50' 
                         : 'border-gray-200 hover:bg-gray-50'
                     }`}
-                    onClick={() => setSelectedRecording(recording)}
+                    onClick={() => {
+                      if (recording.transcript.length === 0) {
+                        loadRecordingDetails(recording.id);
+                      } else {
+                        setSelectedRecording(recording);
+                      }
+                    }}
                   >
                     <div className="flex items-center justify-between">
                       <div>
@@ -325,12 +347,13 @@ export function CallRecording({ callId, onClose }: CallRecordingProps) {
                   </div>
                 ))
               )}
-            </div>
+              </div>
+            </ScrollArea>
           </CardContent>
         </Card>
 
         {/* Audio Player & Transcript */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 h-[calc(100vh-12rem)] overflow-y-auto">
           {selectedRecording ? (
             <>
               {/* Audio Player */}
@@ -343,16 +366,26 @@ export function CallRecording({ callId, onClose }: CallRecordingProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {selectedRecording.recordingUrl && (
+                  {audioUrl && (
                     <audio 
                       ref={audioRef} 
-                      src={selectedRecording.recordingUrl}
+                      src={audioUrl}
                       onLoadedMetadata={() => {
                         if (audioRef.current) {
+                          console.log('Audio loaded, duration:', audioRef.current.duration);
+                          setAudioDuration(audioRef.current.duration);
                           audioRef.current.volume = volume;
                           audioRef.current.playbackRate = playbackRate;
                         }
                       }}
+                      onTimeUpdate={() => {
+                        if (audioRef.current) {
+                          setCurrentTime(audioRef.current.currentTime);
+                        }
+                      }}
+                      onPlay={() => setIsPlaying(true)}
+                      onPause={() => setIsPlaying(false)}
+                      onEnded={() => setIsPlaying(false)}
                     />
                   )}
 
@@ -360,15 +393,16 @@ export function CallRecording({ callId, onClose }: CallRecordingProps) {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm text-muted-foreground">
                       <span>{formatTime(currentTime)}</span>
-                      <span>{formatTime(selectedRecording.duration)}</span>
+                      <span>{formatTime(audioDuration || selectedRecording.duration)}</span>
                     </div>
                     <Progress 
-                      value={(currentTime / selectedRecording.duration) * 100}
+                      value={audioDuration > 0 ? (currentTime / audioDuration) * 100 : 0}
                       className="cursor-pointer"
                       onClick={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
                         const percent = (e.clientX - rect.left) / rect.width;
-                        seekTo(percent * selectedRecording.duration);
+                        const duration = audioDuration || selectedRecording.duration;
+                        seekTo(percent * duration);
                       }}
                     />
                   </div>
@@ -386,7 +420,7 @@ export function CallRecording({ callId, onClose }: CallRecordingProps) {
                       <Button 
                         size="sm" 
                         onClick={togglePlayback}
-                        disabled={!selectedRecording.recordingUrl}
+                        disabled={!audioUrl}
                       >
                         {isPlaying ? (
                           <Pause className="h-4 w-4" />
@@ -397,7 +431,7 @@ export function CallRecording({ callId, onClose }: CallRecordingProps) {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => seekTo(Math.min(selectedRecording.duration, currentTime + 10))}
+                        onClick={() => seekTo(Math.min(audioDuration || selectedRecording.duration, currentTime + 10))}
                       >
                         <SkipForward className="h-4 w-4" />
                       </Button>
@@ -506,18 +540,6 @@ export function CallRecording({ callId, onClose }: CallRecordingProps) {
                                 <span className="text-xs text-muted-foreground">
                                   {formatTime(segment.startTime)}
                                 </span>
-                                <Badge variant="outline" className="text-xs">
-                                  {Math.round(segment.confidence * 100)}% confidence
-                                </Badge>
-                                {segment.sentiment && (
-                                  <Badge variant="outline" className={`text-xs ${
-                                    segment.sentiment === 'positive' ? 'text-green-600' :
-                                    segment.sentiment === 'negative' ? 'text-red-600' :
-                                    'text-yellow-600'
-                                  }`}>
-                                    {segment.sentiment}
-                                  </Badge>
-                                )}
                               </div>
                               <p className="text-sm">{segment.text}</p>
                             </div>

@@ -58,7 +58,6 @@ export class BatchStatusPoller extends BaseService {
       const activeCampaigns = await this.getActiveCampaigns();
       
       if (activeCampaigns.length === 0) {
-        console.log('No active campaigns to poll');
         return;
       }
 

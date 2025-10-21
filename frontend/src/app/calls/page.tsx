@@ -5,7 +5,7 @@ import { MainLayout } from '@/components/Layout/MainLayout';
 import { useAppStore } from '@/store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Phone, Pause, Square, Clock, TrendingUp } from 'lucide-react';
+import { Phone, Pause, Square, Clock, TrendingUp, RefreshCw } from 'lucide-react';
 import { apiClient } from '@/services/api';
 import { BulkCallingLauncher } from '@/components/BulkCallingLauncher';
 import { RealTimeMonitor } from '@/components/RealTimeMonitor';
@@ -26,7 +26,9 @@ export default function CallsPage() {
     name: string;
     phoneNumber: string;
     duration: number;
+    startTime?: string;
   }>>([]);
+  const [localDurations, setLocalDurations] = useState<Record<string, number>>({});
   const [callHistory, setCallHistory] = useState<Array<{
     name: string;
     phoneNumber: string;
@@ -36,15 +38,47 @@ export default function CallsPage() {
   }>>([]);
   const [loading, setLoading] = useState(true);
   const [bulkCallingOpen, setBulkCallingOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   useEffect(() => {
     setCurrentPage('calls');
     fetchCallCenterData();
+
+    // Set up polling for real-time updates every 10 seconds
+    const pollingInterval = setInterval(() => {
+      fetchCallCenterData(true); // Pass true to indicate this is a background refresh
+    }, 10000);
+
+    // Cleanup polling interval on component unmount
+    return () => clearInterval(pollingInterval);
   }, [setCurrentPage]);
 
-  const fetchCallCenterData = async () => {
+  // Separate useEffect for live duration counter
+  useEffect(() => {
+    const durationInterval = setInterval(() => {
+      setLocalDurations(prev => {
+        const updated = { ...prev };
+        activeCalls.forEach(call => {
+          if (updated[call.id] !== undefined) {
+            updated[call.id] = updated[call.id] + 1;
+          }
+        });
+        return updated;
+      });
+    }, 1000);
+
+    return () => clearInterval(durationInterval);
+  }, [activeCalls]);
+
+  const fetchCallCenterData = async (isBackgroundRefresh = false) => {
     try {
-      setLoading(true);
+      if (isBackgroundRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
       const [statsResponse, activeCallsResponse, historyResponse] = await Promise.all([
         apiClient.getCallCenterStats(),
         apiClient.getActiveCallsWithDetails(),
@@ -57,15 +91,31 @@ export default function CallsPage() {
 
       if (activeCallsResponse.success && activeCallsResponse.data) {
         setActiveCalls(activeCallsResponse.data);
+        
+        // Initialize local durations for new calls
+        const newDurations: Record<string, number> = {};
+        activeCallsResponse.data.forEach((call: {
+          id: string;
+          name: string;
+          phoneNumber: string;
+          duration: number;
+          startTime?: string;
+        }) => {
+          newDurations[call.id] = call.duration;
+        });
+        setLocalDurations(prev => ({ ...prev, ...newDurations }));
       }
 
       if (historyResponse.success && historyResponse.data) {
         setCallHistory(historyResponse.data);
       }
+
+      setLastRefresh(new Date());
     } catch (error) {
       console.error('Failed to fetch call center data:', error);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -85,8 +135,29 @@ export default function CallsPage() {
             <p className="text-muted-foreground">
               Monitor and manage AI-powered outbound calls
             </p>
+            <div className="flex items-center gap-2 mt-2">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                Last updated: {lastRefresh.toLocaleTimeString()}
+              </div>
+              {isRefreshing && (
+                <div className="flex items-center gap-1 text-xs text-blue-600">
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  Refreshing...
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => fetchCallCenterData()}
+              disabled={loading || isRefreshing}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${(loading || isRefreshing) ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
             <Button onClick={() => setBulkCallingOpen(true)}>
               <Phone className="mr-2 h-4 w-4" />
               Create Campaign
@@ -207,7 +278,9 @@ export default function CallsPage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium">AI Agent</p>
-                      <p className="text-sm text-muted-foreground">Duration: {formatDuration(call.duration)}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Duration: {formatDuration(localDurations[call.id] || call.duration)}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

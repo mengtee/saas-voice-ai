@@ -16,7 +16,8 @@
     "migrate:clean": "npx db-migrate down -c 100",
     "migrate:seed": "ts-node ./src/seeders/seed.ts",
     "migrate:reset": "npm run migrate:clean && npm run migrate:up",
-    "migrate:reset:seed": "npm run migrate:clean && npm run migrate:up && npm run migrate:seed"
+    "migrate:reset:seed": "npm run migrate:clean && npm run migrate:up && npm run migrate:seed",
+    "create-user": "ts-node src/scripts/createUser.ts"
   },
   "dependencies": {
     "@types/bcryptjs": "^3.0.0",
@@ -36,6 +37,7 @@
     "multer": "^2.0.2",
     "pg": "^8.16.3",
     "twilio": "^4.19.0",
+    "uuid": "^11.1.0",
     "ws": "^8.14.2",
     "xlsx": "^0.18.5"
   },

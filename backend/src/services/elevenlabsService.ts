@@ -193,21 +193,27 @@ export class ElevenLabsService {
           phone_number: phoneNumber
         };
         
-        // Add dynamic variables only if lead data exists
+        // Always add phone_number as dynamic variable and other lead data if available
+        const dynamicVariables: Record<string, string> = {
+          phone_number: phoneNumber // Always include phone_number for AI agent
+        };
+        
+        // Add additional dynamic variables if lead data exists
         if (customData.leads && customData.leads[index]) {
           const lead = customData.leads[index];
-          const dynamicVariables: Record<string, string> = {};
           
           if (lead.name) dynamicVariables.name = lead.name;
-          if (lead.email) dynamicVariables.email = lead.email;
+          if (lead.email) dynamicVariables.email = lead.email;  
           if (lead.purpose) dynamicVariables.purpose = lead.purpose;
-          
-          if (Object.keys(dynamicVariables).length > 0) {
-            recipient.conversation_initiation_client_data = {
-              dynamic_variables: dynamicVariables
-            };
-          }
+          if (lead.id) dynamicVariables.lead_id = lead.id; // Add lead ID for user identification
         }
+        
+        // Always set conversation_initiation_client_data with at least phone_number
+        recipient.conversation_initiation_client_data = {
+          dynamic_variables: dynamicVariables,
+          campaign_id: customData.campaignId, // Add campaign ID for tracking
+          user_id: customData.leads?.[index]?.id // Add user_id for agent context
+        };
         
         return recipient;
       });
@@ -292,6 +298,154 @@ export class ElevenLabsService {
     } catch (error) {
       const axiosError = error as AxiosError;
       console.error('Error canceling batch:', axiosError.response?.data || axiosError.message);
+      return {
+        success: false,
+        error: (axiosError.response?.data as any)?.detail || axiosError.message || 'Unknown error'
+      };
+    }
+  }
+
+
+  /**
+   * Get all conversations for the agent
+   * https://elevenlabs.io/docs/api-reference/conversations/list
+   */
+  async getAllConversations(
+    pageSize: number = 50,
+    cursor?: string,
+    options?: {
+      callStartAfter?: number; // Unix timestamp
+      callStartBefore?: number; // Unix timestamp
+      callSuccessful?: boolean;
+      userId?: string;
+    }
+  ): Promise<{ 
+    success: boolean; 
+    conversations?: any[]; 
+    nextCursor?: string;
+    hasMore?: boolean;
+    error?: string;
+  }> {
+    try {
+      const params: any = {
+        page_size: Math.min(pageSize, 100), // Max 100 per API docs
+        agent_id: this.agentId // Filter by configured agent
+      };
+
+      // Add optional parameters
+      if (cursor) params.cursor = cursor;
+      if (options?.callStartAfter) params.call_start_after_unix = options.callStartAfter;
+      if (options?.callStartBefore) params.call_start_before_unix = options.callStartBefore;
+      if (options?.callSuccessful !== undefined) params.call_successful = options.callSuccessful;
+      if (options?.userId) params.user_id = options.userId;
+
+      const response = await axios.get(
+        `${this.baseUrl}/convai/conversations`,
+        {
+          headers: {
+            'xi-api-key': this.apiKey
+          },
+          params
+        }
+      );
+
+      return {
+        success: true,
+        conversations: response.data.conversations || [],
+        nextCursor: response.data.next_cursor,
+        hasMore: response.data.has_more || false
+      };
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('Error getting conversations:', axiosError.response?.data || axiosError.message);
+      return {
+        success: false,
+        error: (axiosError.response?.data as any)?.detail || axiosError.message || 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Backwards compatible method for simple conversation fetching
+   * Wrapper around getAllConversations for existing code
+   */
+  async getConversationsSimple(limit: number = 50): Promise<{ success: boolean; conversations?: any[]; error?: string }> {
+    const result = await this.getAllConversations(limit);
+    return {
+      success: result.success,
+      conversations: result.conversations,
+      error: result.error
+    };
+  }
+
+  /**
+   * Get detailed conversation info with transcript
+   * Enhanced version of existing getConversationStatus method
+   */
+  async getConversationDetails(conversationId: string): Promise<{ success: boolean; conversation?: any; error?: string }> {
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/convai/conversations/${conversationId}`,
+        {
+          headers: {
+            'xi-api-key': this.apiKey
+          }
+        }
+      );
+
+      return {
+        success: true,
+        conversation: response.data
+      };
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('Error getting conversation details:', axiosError.response?.data || axiosError.message);
+      return {
+        success: false,
+        error: (axiosError.response?.data as any)?.detail || axiosError.message || 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Get conversation audio from ElevenLabs
+   * https://elevenlabs.io/docs/api-reference/conversations/get-audio
+   */
+  async getConversationAudio(conversationId: string): Promise<{ success: boolean; audioUrl?: string; error?: string }> {
+    try {
+      console.log('Fetching audio for conversation:', conversationId);
+      const response = await axios.get(
+        `${this.baseUrl}/convai/conversations/${conversationId}/audio`,
+        {
+          headers: {
+            'xi-api-key': this.apiKey
+          },
+          responseType: 'arraybuffer' // Get audio as binary data
+        }
+      );
+      
+      console.log('Audio response status:', response.status);
+      console.log('Audio response headers:', response.headers);
+      console.log('Audio response data type:', typeof response.data);
+      console.log('Audio response data length:', response.data.byteLength);
+      
+      // Convert binary audio data to base64 data URL
+      const audioBuffer = Buffer.from(response.data);
+      const audioBase64 = audioBuffer.toString('base64');
+      const mimeType = response.headers['content-type'] || 'audio/mpeg';
+      const audioUrl = `data:${mimeType};base64,${audioBase64}`;
+      
+      console.log('Generated audio URL length:', audioUrl.length);
+      console.log('Generated audio URL start:', audioUrl.substring(0, 100));
+      
+      return {
+        success: true,
+        audioUrl
+      };
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('Error getting conversation audio:', axiosError.response?.data || axiosError.message);
+      console.error('Error status:', axiosError.response?.status);
       return {
         success: false,
         error: (axiosError.response?.data as any)?.detail || axiosError.message || 'Unknown error'
