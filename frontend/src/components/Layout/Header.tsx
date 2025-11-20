@@ -65,6 +65,8 @@ export function Header() {
         return 'Call Center';
       case 'calendar':
         return 'Appointments';
+      case 'analytics':
+        return 'Analytics';
       case 'whatsapp':
         return 'WhatsApp Follow-ups';
       case 'channels':

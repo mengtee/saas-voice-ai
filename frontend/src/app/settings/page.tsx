@@ -344,14 +344,6 @@ export default function SettingsPage() {
   return (
     <MainLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
-          <p className="text-muted-foreground">
-            Configure your account, integrations, and system preferences
-          </p>
-        </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Settings Navigation */}
           <Card className="lg:col-span-1">
