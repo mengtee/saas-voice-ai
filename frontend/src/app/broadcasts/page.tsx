@@ -27,6 +27,7 @@ import {
   Send
 } from 'lucide-react';
 import { CampaignCreator } from '@/components/CampaignCreator';
+import { PageTransition } from '@/components/PageTransition';
 
 interface Broadcast {
   id: string;
@@ -215,6 +216,7 @@ export default function BroadcastsPage() {
   return (
     <AuthGuard>
       <MainLayout>
+        <PageTransition>
         <div className="flex h-[calc(100vh-120px)] gap-6">
           {/* Left Sidebar */}
           <div className="w-64 flex flex-col space-y-4">
@@ -447,6 +449,7 @@ export default function BroadcastsPage() {
             fetchBroadcasts(); // Refresh the list
           }}
         />
+        </PageTransition>
       </MainLayout>
     </AuthGuard>
   );

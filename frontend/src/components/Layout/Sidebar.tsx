@@ -183,7 +183,7 @@ export function Sidebar() {
               <Button
                 variant={isActive ? "secondary" : "ghost"}
                 className={cn(
-                  "w-full justify-start gap-3 h-11",
+                  "w-full justify-start gap-3 h-11 transition-all duration-200",
                   !sidebarOpen && "px-2 justify-center"
                 )}
               >

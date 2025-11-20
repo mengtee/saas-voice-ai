@@ -98,3 +98,61 @@
   transform: translateY(-20px);
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
+
+/* Prevent layout shifts */
+.no-layout-shift {
+  contain: layout style;
+}
+
+/* Stable navigation */
+.nav-stable {
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* Smooth sidebar transitions */
+.sidebar-transition {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Content area smooth transitions */
+.content-transition {
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Prevent flash of unstyled content */
+.page-container {
+  opacity: 0;
+  animation: pageLoad 0.3s ease-in forwards;
+  animation-delay: 0.1s;
+}
+
+@keyframes pageLoad {
+  to { opacity: 1; }
+}
+
+/* Stable grid layouts */
+.stable-grid {
+  display: grid;
+  min-height: 200px;
+  contain: layout;
+}
+
+/* Prevent button layout shifts */
+.stable-button {
+  min-width: fit-content;
+  white-space: nowrap;
+}
+
+/* Navigation stability */
+.nav-container {
+  contain: layout style;
+  will-change: transform;
+}
+
+/* Smooth height transitions for dynamic content */
+.dynamic-height {
+  transition: height 0.2s ease-out;
+  overflow: hidden;
+}

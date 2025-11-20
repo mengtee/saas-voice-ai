@@ -10,7 +10,7 @@ interface FetchState<T> {
 
 export function useSimpleFetch<T>(
   fetchFn: () => Promise<T>,
-  deps: any[] = []
+  deps: React.DependencyList = []
 ) {
   const [state, setState] = useState<FetchState<T>>({
     data: null,
@@ -18,11 +18,15 @@ export function useSimpleFetch<T>(
     error: null
   });
 
-  const abortControllerRef = useRef<AbortController>();
+  const abortControllerRef = useRef<AbortController | undefined>(undefined);
   const isMountedRef = useRef(true);
+  const requestIdRef = useRef(0);
 
   const execute = useCallback(async () => {
     if (!isMountedRef.current) return;
+
+    // Increment request ID to handle race conditions
+    const currentRequestId = ++requestIdRef.current;
 
     setState(prev => ({ ...prev, loading: true, error: null }));
 
@@ -37,7 +41,8 @@ export function useSimpleFetch<T>(
     try {
       const result = await fetchFn();
       
-      if (isMountedRef.current) {
+      // Only update state if this is still the latest request and component is mounted
+      if (isMountedRef.current && currentRequestId === requestIdRef.current) {
         setState({
           data: result,
           loading: false,
@@ -45,7 +50,10 @@ export function useSimpleFetch<T>(
         });
       }
     } catch (error) {
-      if (isMountedRef.current && !abortControllerRef.current?.signal.aborted) {
+      // Only update error if this is still the latest request and component is mounted
+      if (isMountedRef.current && 
+          currentRequestId === requestIdRef.current && 
+          !abortControllerRef.current?.signal.aborted) {
         setState(prev => ({
           ...prev,
           loading: false,
@@ -62,11 +70,9 @@ export function useSimpleFetch<T>(
   }, [execute, state.data]);
 
   useEffect(() => {
-    isMountedRef.current = true;
     execute();
 
     return () => {
-      isMountedRef.current = false;
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }

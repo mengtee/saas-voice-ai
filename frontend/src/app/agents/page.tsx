@@ -28,6 +28,8 @@ import { AgentCreator } from '@/components/AgentCreator';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LoadingOverlay } from '@/components/ui/loading';
 import { CardSkeleton } from '@/components/ui/skeleton';
+import { PageLoading } from '@/components/PageLoading';
+import { PageTransition } from '@/components/PageTransition';
 import { useSimpleFetch } from '@/hooks/useSimpleFetch';
 
 interface AIAgent {
@@ -181,8 +183,9 @@ export default function AgentsPage() {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     
     try {
-      // Optimistically update the UI
       // In a real app, you'd make an API call here
+      // Example: await apiClient.updateAgent(agentId, { status: newStatus });
+      console.log(`Toggling agent ${agentId} to ${newStatus}`);
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Refresh the data after successful update
@@ -195,7 +198,9 @@ export default function AgentsPage() {
   return (
     <AuthGuard>
       <MainLayout>
-        <ErrorBoundary>
+        <PageTransition>
+          <ErrorBoundary>
+            <PageLoading loading={loading && !agents}>
         <div className="flex h-[calc(100vh-120px)] gap-6">
           {/* Left Sidebar */}
           <div className="w-64 flex flex-col space-y-4">
@@ -402,7 +407,9 @@ export default function AgentsPage() {
             refetch(true); // Force refresh the list
           }}
         />
-        </ErrorBoundary>
+            </PageLoading>
+          </ErrorBoundary>
+        </PageTransition>
       </MainLayout>
     </AuthGuard>
   );
