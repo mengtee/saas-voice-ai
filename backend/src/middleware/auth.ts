@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from '../services/authService';
+import { UserRepository } from '../repositories/UserRepository';
 import { Pool } from 'pg';
 import { Config } from '../config';
 
@@ -65,7 +66,8 @@ export const createAuthMiddleware = (pool: Pool, config: Config) => {
       }
 
       // Verify token using AuthService
-      const authService = new AuthService({ pool, config });
+      const userRepository = new UserRepository({ pool });
+      const authService = new AuthService(config, userRepository);
       const user = await authService.verifyToken(token);
 
       // Attach user info to request object

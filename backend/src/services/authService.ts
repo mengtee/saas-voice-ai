@@ -1,21 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { Pool, PoolClient } from 'pg';
-import { BaseService } from './base';
 import { Config } from '../config';
-
-// User interface from database
-interface User {
-  id: string;
-  tenant_id: string;
-  email: string;
-  password_hash: string;
-  name: string;
-  role: 'admin' | 'agent' | 'viewer';
-  created_at: string;
-  updated_at: string;
-  last_login?: string;
-}
+import { UserRepository, User } from '../repositories/UserRepository';
 
 // JWT Payload - what gets stored inside the token
 interface JWTPayload {
@@ -28,12 +14,13 @@ interface JWTPayload {
   exp?: number; // expires at
 }
 
-export class AuthService extends BaseService {
+export class AuthService {
   private config: Config;
+  private userRepository: UserRepository;
 
-  constructor({ pool, client, config }: { pool?: Pool; client?: PoolClient; config: Config }) {
-    super({ pool, client });
+  constructor(config: Config, userRepository: UserRepository) {
     this.config = config;
+    this.userRepository = userRepository;
   }
 
   /**
@@ -48,16 +35,11 @@ export class AuthService extends BaseService {
     try {
       // Step 1: Find user by email (across all tenants)
       // Note: Same email can exist in different tenants, we get the first match
-      const result = await this.query<User>(
-        'SELECT * FROM users WHERE email = $1',
-        [email]
-      );
+      const user = await this.userRepository.findByEmail(email);
 
-      if (result.rows.length === 0) {
+      if (!user) {
         throw new Error('Invalid credentials');
       }
-
-      const user = result.rows[0];
 
       // Step 2: Verify password using bcrypt
       // bcrypt.compare() hashes the plain password and compares with stored hash
@@ -87,10 +69,7 @@ export class AuthService extends BaseService {
       );
 
       // Step 4: Update last login timestamp
-      await this.query(
-        'UPDATE users SET last_login = NOW() WHERE id = $1',
-        [user.id]
-      );
+      await this.userRepository.updateLastLogin(user.id);
 
       // Step 5: Return token and user data (exclude password)
       const { password_hash, ...userWithoutPassword } = user;
@@ -121,16 +100,12 @@ export class AuthService extends BaseService {
       const decoded = (jwt as any).verify(token, this.config.jwtSecret) as JWTPayload;
 
       // Optional: Refresh user data from database (to get latest role changes)
-      const result = await this.query<User>(
-        'SELECT * FROM users WHERE id = $1',
-        [decoded.userId]
-      );
+      const user = await this.userRepository.findById(decoded.userId);
 
-      if (result.rows.length === 0) {
+      if (!user) {
         throw new Error('User not found');
       }
 
-      const user = result.rows[0];
       const { password_hash, ...userWithoutPassword } = user;
 
       return userWithoutPassword;
@@ -151,16 +126,12 @@ export class AuthService extends BaseService {
    */
   async getUserById(userId: string): Promise<Omit<User, 'password_hash'> | null> {
     try {
-      const result = await this.query<User>(
-        'SELECT * FROM users WHERE id = $1',
-        [userId]
-      );
-
-      if (result.rows.length === 0) {
+      const user = await this.userRepository.findById(userId);
+      
+      if (!user) {
         return null;
       }
 
-      const user = result.rows[0];
       const { password_hash, ...userWithoutPassword } = user;
       
       return userWithoutPassword;
@@ -178,36 +149,36 @@ export class AuthService extends BaseService {
     password: string;
     name: string;
     role: 'admin' | 'agent' | 'viewer';
-    tenantId?: string;
+    tenantId: string;
   }): Promise<Omit<User, 'password_hash'>> {
     try {
       // Hash password before storing (matching seed.ts)
       const saltRounds = 10;
       const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
 
-      // Get tenant_id if not provided
-      let tenantId = userData.tenantId;
-      if (!tenantId) {
-        const tenantResult = await this.query('SELECT id FROM tenants ORDER BY created_at LIMIT 1');
-        if (tenantResult.rows.length === 0) {
-          throw new Error('No tenants found');
-        }
-        tenantId = tenantResult.rows[0].id;
+      // Check if email already exists for this tenant
+      const existingUser = await this.userRepository.findByTenantIdAndEmail(userData.tenantId, userData.email);
+      if (existingUser) {
+        throw new Error('Email already exists');
       }
 
-      const result = await this.query<User>(
-        `INSERT INTO users (tenant_id, email, password_hash, name, role) 
-         VALUES ($1, $2, $3, $4, $5) 
-         RETURNING *`,
-        [tenantId, userData.email, hashedPassword, userData.name, userData.role]
-      );
+      const createData = {
+        tenant_id: userData.tenantId,
+        email: userData.email,
+        password_hash: hashedPassword,
+        name: userData.name,
+        role: userData.role
+      };
 
-      const user = result.rows[0];
+      const user = await this.userRepository.create(createData);
       const { password_hash, ...userWithoutPassword } = user;
       
       return userWithoutPassword;
     } catch (error) {
       console.error('Create user error:', error);
+      if (error instanceof Error && error.message === 'Email already exists') {
+        throw error;
+      }
       throw new Error('User creation failed');
     }
   }
