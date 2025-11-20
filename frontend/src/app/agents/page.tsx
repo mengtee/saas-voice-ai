@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
 import { MainLayout } from '@/components/Layout/MainLayout';
 import { useAppStore } from '@/store';
@@ -14,7 +14,6 @@ import {
   MoreHorizontal,
   Phone,
   MessageSquare,
-  Settings,
   Play,
   Pause,
   Copy,
@@ -30,7 +29,6 @@ import { LoadingOverlay } from '@/components/ui/loading';
 import { CardSkeleton } from '@/components/ui/skeleton';
 import { PageLoading } from '@/components/PageLoading';
 import { PageTransition } from '@/components/PageTransition';
-import { useSimpleFetch } from '@/hooks/useSimpleFetch';
 
 interface AIAgent {
   id: string;
@@ -59,82 +57,106 @@ interface AgentFilter {
   count: number;
 }
 
+// Mock data - fast and simple
+const MOCK_AGENTS: AIAgent[] = [
+  {
+    id: '1',
+    name: 'Sales Assistant Voice',
+    type: 'voice_calling',
+    description: 'Handles outbound sales calls and lead qualification',
+    status: 'active',
+    voice_id: 'voice_abc123',
+    model: 'gpt-4',
+    instructions: 'You are a friendly sales assistant. Your goal is to qualify leads and schedule appointments.',
+    greeting_message: 'Hi! I\'m calling from Funnel AI. Do you have a moment to discuss how we can help grow your business?',
+    created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
+    updated_at: new Date(Date.now() - 86400000).toISOString(),
+    usage_stats: {
+      calls_handled: 156,
+      success_rate: 78,
+      avg_response_time: 1.2
+    }
+  },
+  {
+    id: '2',
+    name: 'Customer Support Bot',
+    type: 'whatsapp_reply',
+    description: 'Provides 24/7 customer support via WhatsApp',
+    status: 'active',
+    model: 'gpt-3.5-turbo',
+    instructions: 'You are a helpful customer support agent. Answer questions about products, handle complaints, and escalate when necessary.',
+    created_at: new Date(Date.now() - 86400000 * 14).toISOString(),
+    updated_at: new Date(Date.now() - 3600000).toISOString(),
+    usage_stats: {
+      messages_replied: 1247,
+      success_rate: 92,
+      avg_response_time: 0.8
+    }
+  },
+  {
+    id: '3',
+    name: 'Appointment Setter',
+    type: 'voice_calling',
+    description: 'Follows up with leads and schedules appointments',
+    status: 'inactive',
+    voice_id: 'voice_def456',
+    model: 'gpt-4',
+    instructions: 'You are an appointment setter. Your goal is to schedule meetings between leads and sales representatives.',
+    greeting_message: 'Hello! I\'m following up on your interest in our services. Can we schedule a quick 15-minute call?',
+    created_at: new Date(Date.now() - 86400000 * 30).toISOString(),
+    updated_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+    usage_stats: {
+      calls_handled: 89,
+      success_rate: 65,
+      avg_response_time: 1.5
+    }
+  }
+];
+
 export default function AgentsPage() {
   const { setCurrentPage } = useAppStore();
   const [activeFilter, setActiveFilter] = useState('all');
   const [agentCreatorOpen, setAgentCreatorOpen] = useState(false);
+  const [agents, setAgents] = useState<AIAgent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   
-  // Simple data fetching
-  const { data: agents, loading, error, refetch } = useSimpleFetch<AIAgent[]>(fetchAgentsData);
-  
-  const [filters] = useState<AgentFilter[]>([
-    { id: 'all', name: 'All Agents', icon: Bot, count: 0 },
-    { id: 'voice_calling', name: 'Voice Calling', icon: Phone, count: 0 },
-    { id: 'whatsapp_reply', name: 'WhatsApp Reply', icon: MessageSquare, count: 0 }
-  ]);
+  // Memoized filter counts for better performance
+  const filterCounts = useMemo(() => {
+    if (!agents) return { all: 0, voice_calling: 0, whatsapp_reply: 0 };
+    
+    return {
+      all: agents.length,
+      voice_calling: agents.filter(a => a.type === 'voice_calling').length,
+      whatsapp_reply: agents.filter(a => a.type === 'whatsapp_reply').length
+    };
+  }, [agents]);
+
+  const filters = useMemo<AgentFilter[]>(() => [
+    { id: 'all', name: 'All Agents', icon: Bot, count: filterCounts.all },
+    { id: 'voice_calling', name: 'Voice Calling', icon: Phone, count: filterCounts.voice_calling },
+    { id: 'whatsapp_reply', name: 'WhatsApp Reply', icon: MessageSquare, count: filterCounts.whatsapp_reply }
+  ], [filterCounts]);
 
   useEffect(() => {
     setCurrentPage('agents');
   }, [setCurrentPage]);
 
-  async function fetchAgentsData(): Promise<AIAgent[]> {
-    // Mock data - replace with actual API call
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-    return [
-        {
-          id: '1',
-          name: 'Sales Assistant Voice',
-          type: 'voice_calling',
-          description: 'Handles outbound sales calls and lead qualification',
-          status: 'active',
-          voice_id: 'voice_abc123',
-          model: 'gpt-4',
-          instructions: 'You are a friendly sales assistant. Your goal is to qualify leads and schedule appointments.',
-          greeting_message: 'Hi! I\'m calling from Funnel AI. Do you have a moment to discuss how we can help grow your business?',
-          created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
-          updated_at: new Date(Date.now() - 86400000).toISOString(),
-          usage_stats: {
-            calls_handled: 156,
-            success_rate: 78,
-            avg_response_time: 1.2
-          }
-        },
-        {
-          id: '2',
-          name: 'Customer Support Bot',
-          type: 'whatsapp_reply',
-          description: 'Provides 24/7 customer support via WhatsApp',
-          status: 'active',
-          model: 'gpt-3.5-turbo',
-          instructions: 'You are a helpful customer support agent. Answer questions about products, handle complaints, and escalate when necessary.',
-          created_at: new Date(Date.now() - 86400000 * 14).toISOString(),
-          updated_at: new Date(Date.now() - 3600000).toISOString(),
-          usage_stats: {
-            messages_replied: 1247,
-            success_rate: 92,
-            avg_response_time: 0.8
-          }
-        },
-        {
-          id: '3',
-          name: 'Appointment Setter',
-          type: 'voice_calling',
-          description: 'Follows up with leads and schedules appointments',
-          status: 'inactive',
-          voice_id: 'voice_def456',
-          model: 'gpt-4',
-          instructions: 'You are an appointment setter. Your goal is to schedule meetings between leads and sales representatives.',
-          greeting_message: 'Hello! I\'m following up on your interest in our services. Can we schedule a quick 15-minute call?',
-          created_at: new Date(Date.now() - 86400000 * 30).toISOString(),
-          updated_at: new Date(Date.now() - 86400000 * 5).toISOString(),
-          usage_stats: {
-            calls_handled: 89,
-            success_rate: 65,
-            avg_response_time: 1.5
-          }
-        }
-    ];
-  }
+  // Simple data loading - no complex hooks needed
+  useEffect(() => {
+    // Simulate quick data load
+    const loadData = () => {
+      setLoading(true);
+      // Minimal delay for smooth transition
+      setTimeout(() => {
+        setAgents(MOCK_AGENTS);
+        setLoading(false);
+        setError(null);
+      }, 50); // Much faster than before
+    };
+
+    loadData();
+  }, []); // Only run once
 
   const getStatusBadge = (status: string) => {
     const colors = {
@@ -174,26 +196,45 @@ export default function AgentsPage() {
     );
   };
 
-  const filteredAgents = (agents || []).filter(agent => {
-    if (activeFilter === 'all') return true;
-    return agent.type === activeFilter;
-  });
+  const filteredAgents = useMemo(() => {
+    if (!agents) return [];
+    if (activeFilter === 'all') return agents;
+    return agents.filter(agent => agent.type === activeFilter);
+  }, [agents, activeFilter]);
 
-  const handleToggleStatus = async (agentId: string, currentStatus: string) => {
+  const refetch = useCallback((force = false) => {
+    if (force) {
+      setLoading(true);
+      setTimeout(() => {
+        setAgents(MOCK_AGENTS);
+        setLoading(false);
+      }, 50);
+    }
+  }, []);
+
+  const handleToggleStatus = useCallback(async (agentId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     
     try {
+      // Optimistic update - update immediately
+      setAgents(prev => 
+        prev.map(agent => 
+          agent.id === agentId 
+            ? { ...agent, status: newStatus as 'active' | 'inactive' | 'training' }
+            : agent
+        )
+      );
+      
       // In a real app, you'd make an API call here
       // Example: await apiClient.updateAgent(agentId, { status: newStatus });
-      console.log(`Toggling agent ${agentId} to ${newStatus}`);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log(`Toggled agent ${agentId} to ${newStatus}`);
       
-      // Refresh the data after successful update
-      refetch(true);
     } catch (error) {
       console.error('Failed to toggle agent status:', error);
+      // Revert on error
+      refetch(true);
     }
-  };
+  }, [refetch]);
 
   return (
     <AuthGuard>
@@ -210,9 +251,6 @@ export default function AgentsPage() {
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-2 mb-2">Agent Type</h3>
               {filters.map((filter) => {
                 const Icon = filter.icon;
-                const count = activeFilter === filter.id ? 
-                  filteredAgents.length : 
-                  (agents || []).filter(a => filter.id === 'all' || a.type === filter.id).length;
                 
                 return (
                   <button
@@ -225,7 +263,7 @@ export default function AgentsPage() {
                     <Icon className="h-4 w-4 text-muted-foreground" />
                     <span className="flex-1">{filter.name}</span>
                     <Badge variant="secondary" className="text-xs">
-                      {count}
+                      {filter.count}
                     </Badge>
                   </button>
                 );
