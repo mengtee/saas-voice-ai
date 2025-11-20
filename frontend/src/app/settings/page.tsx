@@ -161,14 +161,14 @@ export default function SettingsPage() {
   const renderElevenLabsSettings = () => (
     <Card>
       <CardHeader>
-        <CardTitle>ElevenLabs Integration</CardTitle>
+        <CardTitle>Voice Agent Integration</CardTitle>
         <CardDescription>
           Configure your AI voice calling settings for automated sales calls
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="elevenLabsApiKey">ElevenLabs API Key</Label>
+          <Label htmlFor="elevenLabsApiKey">Credential</Label>
           <Input
             id="elevenLabsApiKey"
             type="password"
