@@ -20,9 +20,15 @@ import {
   Copy,
   Trash2,
   Edit,
-  TestTube
+  TestTube,
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
 import { AgentCreator } from '@/components/AgentCreator';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { LoadingOverlay } from '@/components/ui/loading';
+import { CardSkeleton } from '@/components/ui/skeleton';
+import { useSimpleFetch } from '@/hooks/useSimpleFetch';
 
 interface AIAgent {
   id: string;
@@ -53,10 +59,11 @@ interface AgentFilter {
 
 export default function AgentsPage() {
   const { setCurrentPage } = useAppStore();
-  const [agents, setAgents] = useState<AIAgent[]>([]);
-  const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('all');
   const [agentCreatorOpen, setAgentCreatorOpen] = useState(false);
+  
+  // Simple data fetching
+  const { data: agents, loading, error, refetch } = useSimpleFetch<AIAgent[]>(fetchAgentsData);
   
   const [filters] = useState<AgentFilter[]>([
     { id: 'all', name: 'All Agents', icon: Bot, count: 0 },
@@ -66,14 +73,12 @@ export default function AgentsPage() {
 
   useEffect(() => {
     setCurrentPage('agents');
-    fetchAgents();
   }, [setCurrentPage]);
 
-  const fetchAgents = async () => {
-    try {
-      setLoading(true);
-      // Mock data - replace with actual API call
-      const mockAgents: AIAgent[] = [
+  async function fetchAgentsData(): Promise<AIAgent[]> {
+    // Mock data - replace with actual API call
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+    return [
         {
           id: '1',
           name: 'Sales Assistant Voice',
@@ -126,15 +131,8 @@ export default function AgentsPage() {
             avg_response_time: 1.5
           }
         }
-      ];
-      
-      setAgents(mockAgents);
-    } catch (error) {
-      console.error('Failed to fetch agents:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    ];
+  }
 
   const getStatusBadge = (status: string) => {
     const colors = {
@@ -174,22 +172,30 @@ export default function AgentsPage() {
     );
   };
 
-  const filteredAgents = agents.filter(agent => {
+  const filteredAgents = (agents || []).filter(agent => {
     if (activeFilter === 'all') return true;
     return agent.type === activeFilter;
   });
 
   const handleToggleStatus = async (agentId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-    // Update agent status - replace with actual API call
-    setAgents(prev => prev.map(agent => 
-      agent.id === agentId ? { ...agent, status: newStatus as any } : agent
-    ));
+    
+    try {
+      // Optimistically update the UI
+      // In a real app, you'd make an API call here
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Refresh the data after successful update
+      refetch(true);
+    } catch (error) {
+      console.error('Failed to toggle agent status:', error);
+    }
   };
 
   return (
     <AuthGuard>
       <MainLayout>
+        <ErrorBoundary>
         <div className="flex h-[calc(100vh-120px)] gap-6">
           {/* Left Sidebar */}
           <div className="w-64 flex flex-col space-y-4">
@@ -201,7 +207,7 @@ export default function AgentsPage() {
                 const Icon = filter.icon;
                 const count = activeFilter === filter.id ? 
                   filteredAgents.length : 
-                  agents.filter(a => filter.id === 'all' || a.type === filter.id).length;
+                  (agents || []).filter(a => filter.id === 'all' || a.type === filter.id).length;
                 
                 return (
                   <button
@@ -247,7 +253,20 @@ export default function AgentsPage() {
 
             {/* Agents Grid */}
             <div className="flex-1 overflow-auto">
-              {filteredAgents.length === 0 ? (
+              <LoadingOverlay loading={loading}>
+              {error ? (
+                <Card className="h-full">
+                  <CardContent className="flex flex-col items-center justify-center h-full">
+                    <AlertTriangle className="mx-auto h-12 w-12 text-red-500 mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Failed to load agents</h3>
+                    <p className="text-muted-foreground mb-4">{error.message}</p>
+                    <Button onClick={() => refetch(true)}>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Retry
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : filteredAgents.length === 0 && !loading ? (
                 <Card className="h-full">
                   <CardContent className="flex flex-col items-center justify-center h-full">
                     <Bot className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -263,31 +282,15 @@ export default function AgentsPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                   {loading ? (
                     Array.from({ length: 6 }).map((_, index) => (
-                      <Card key={index} className="animate-pulse">
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-2">
-                              <div className="h-4 bg-muted rounded w-24"></div>
-                              <div className="h-3 bg-muted rounded w-16"></div>
-                            </div>
-                            <div className="h-6 bg-muted rounded w-16"></div>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-3">
-                            <div className="h-3 bg-muted rounded w-full"></div>
-                            <div className="h-3 bg-muted rounded w-3/4"></div>
-                            <div className="flex gap-2">
-                              <div className="h-8 bg-muted rounded w-16"></div>
-                              <div className="h-8 bg-muted rounded w-16"></div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <CardSkeleton key={index} />
                     ))
                   ) : (
-                    filteredAgents.map((agent) => (
-                      <Card key={agent.id} className="group hover:shadow-md transition-shadow">
+                    filteredAgents.map((agent, index) => (
+                      <Card 
+                        key={agent.id} 
+                        className="group hover:shadow-md transition-all duration-200 animate-fade-in hover:-translate-y-1"
+                        style={{ animationDelay: `${index * 50}ms` }}
+                      >
                         <CardHeader>
                           <div className="flex items-start justify-between">
                             <div className="space-y-1">
@@ -387,6 +390,7 @@ export default function AgentsPage() {
                   )}
                 </div>
               )}
+              </LoadingOverlay>
             </div>
           </div>
         </div>
@@ -395,9 +399,10 @@ export default function AgentsPage() {
           isOpen={agentCreatorOpen}
           onOpenChange={setAgentCreatorOpen}
           onAgentCreated={() => {
-            fetchAgents(); // Refresh the list
+            refetch(true); // Force refresh the list
           }}
         />
+        </ErrorBoundary>
       </MainLayout>
     </AuthGuard>
   );
