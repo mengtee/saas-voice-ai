@@ -221,44 +221,6 @@ export function Sidebar() {
 
         <Separator />
         
-        {/* User Section */}
-        <div className="p-4">
-          <div
-            className={cn(
-              "flex items-center gap-3 rounded-lg p-2",
-              !sidebarOpen && "justify-center p-1"
-            )}
-          >
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-              {user?.avatar_url ? (
-                <Image
-                  src={user.avatar_url}
-                  alt={user.name}
-                  width={32}
-                  height={32}
-                  className="rounded-full object-cover"
-                />
-              ) : (
-                <span className="text-sm font-medium text-primary">
-                  {getInitials(user?.name)}
-                </span>
-              )}
-            </div>
-            {sidebarOpen && (
-              <div className="flex-1 truncate min-w-0">
-                <p className="text-sm font-medium truncate">
-                  {getDisplayName(user?.name)}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {user?.email || "user@example.com"}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <Separator />
-        
         {/* Bottom Navigation */}
         <nav className="space-y-1 p-2">
           {bottomNavigation.map((item) => {
