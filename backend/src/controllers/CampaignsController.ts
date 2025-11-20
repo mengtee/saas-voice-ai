@@ -74,17 +74,15 @@ export class CampaignsController extends BaseController {
         return;
       }
 
-      const campaignData = {
+      const result = await this.campaignService.createCampaign(
+        currentUser.tenant_id,
         name,
         agent_id,
         lead_ids,
+        campaign_type || 'voice_call',
         custom_message,
-        scheduled_at,
-        campaign_type: campaign_type || 'voice_call',
-        tenant_id: currentUser.tenant_id
-      };
-
-      const result = await this.campaignService.createCampaign(campaignData);
+        scheduled_at
+      );
       this.sendCreated(res, result, 'Campaign created successfully');
 
     } catch (error: any) {
@@ -208,7 +206,7 @@ export class CampaignsController extends BaseController {
         return;
       }
 
-      const result = await this.campaignService.startCampaign(id);
+      const result = await this.campaignService.startCampaign(id, currentUser.tenant_id);
       this.sendSuccess(res, result, 'Campaign started successfully');
 
     } catch (error: any) {
@@ -243,7 +241,7 @@ export class CampaignsController extends BaseController {
         return;
       }
 
-      const result = await this.campaignService.pauseCampaign(id);
+      const result = await this.campaignService.pauseCampaign(id, currentUser.tenant_id);
       this.sendSuccess(res, result, 'Campaign paused successfully');
 
     } catch (error: any) {
@@ -252,35 +250,6 @@ export class CampaignsController extends BaseController {
     }
   };
 
-  resumeCampaign = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { id } = req.params;
-      const currentUser = this.getUserFromRequest(req);
-
-      const campaign = await this.campaignRepository.findById(id);
-      if (!campaign) {
-        this.sendNotFound(res, 'Campaign not found');
-        return;
-      }
-
-      if (campaign.tenant_id !== currentUser.tenant_id) {
-        this.sendForbidden(res, 'Access denied');
-        return;
-      }
-
-      if (campaign.status !== 'paused') {
-        this.sendError(res, 'Campaign is not paused');
-        return;
-      }
-
-      const result = await this.campaignService.resumeCampaign(id);
-      this.sendSuccess(res, result, 'Campaign resumed successfully');
-
-    } catch (error: any) {
-      console.error('Resume campaign controller error:', error);
-      this.sendInternalError(res, 'Failed to resume campaign');
-    }
-  };
 
   getCampaignCalls = async (req: Request, res: Response): Promise<void> => {
     try {

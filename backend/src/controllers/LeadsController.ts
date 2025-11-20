@@ -214,7 +214,8 @@ export class LeadsController extends BaseController {
         return;
       }
 
-      const result = await this.leadService.importFromFile(req.file.path, currentUser.id, currentUser.tenant_id);
+      // Use the actual LeadService method signature
+      const result = await this.leadService.uploadLeads(req.file.path, req.file.filename || 'upload', currentUser.tenant_id);
       this.sendSuccess(res, result, 'Leads imported successfully');
 
     } catch (error: any) {
@@ -225,45 +226,6 @@ export class LeadsController extends BaseController {
       } else {
         this.sendInternalError(res, 'Failed to import leads');
       }
-    }
-  };
-
-  exportLeads = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const currentUser = this.getUserFromRequest(req);
-      const format = (req.query.format as string) || 'csv';
-
-      if (!['csv', 'excel'].includes(format)) {
-        this.sendError(res, 'Invalid format. Must be csv or excel');
-        return;
-      }
-
-      const filters: LeadFilters = {};
-      if (req.query.status) filters.status = req.query.status as string;
-      if (req.query.assigned_user_id) filters.assigned_user_id = req.query.assigned_user_id as string;
-      if (req.query.date_from) filters.date_from = req.query.date_from as string;
-      if (req.query.date_to) filters.date_to = req.query.date_to as string;
-
-      // If user is not admin, only export their assigned leads
-      if (currentUser.role !== 'admin') {
-        filters.assigned_user_id = currentUser.id;
-      }
-
-      const result = await this.leadService.exportToFile(currentUser.tenant_id, format, filters);
-      
-      const contentType = format === 'excel' 
-        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        : 'text/csv';
-      
-      const extension = format === 'excel' ? 'xlsx' : 'csv';
-      
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', `attachment; filename=leads_export.${extension}`);
-      res.send(result.buffer);
-
-    } catch (error: any) {
-      console.error('Export leads controller error:', error);
-      this.sendInternalError(res, 'Failed to export leads');
     }
   };
 
@@ -290,61 +252,4 @@ export class LeadsController extends BaseController {
     }
   };
 
-  bulkUpdateLeads = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { lead_ids, updates } = req.body;
-      const currentUser = this.getUserFromRequest(req);
-
-      if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
-        this.sendError(res, 'lead_ids must be a non-empty array');
-        return;
-      }
-
-      if (!updates || typeof updates !== 'object') {
-        this.sendError(res, 'updates must be an object');
-        return;
-      }
-
-      if (updates.status && !['pending', 'called', 'scheduled', 'completed', 'failed'].includes(updates.status)) {
-        this.sendError(res, 'Invalid status. Must be: pending, called, scheduled, completed, or failed');
-        return;
-      }
-
-      const result = await this.leadService.bulkUpdateLeads(lead_ids, updates, currentUser);
-      this.sendSuccess(res, result, 'Leads updated successfully');
-
-    } catch (error: any) {
-      console.error('Bulk update leads controller error:', error);
-      
-      if (error.message.includes('Access denied') || error.message.includes('permission')) {
-        this.sendForbidden(res, error.message);
-      } else {
-        this.sendInternalError(res, 'Failed to update leads');
-      }
-    }
-  };
-
-  deleteLeads = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { lead_ids } = req.body;
-      const currentUser = this.getUserFromRequest(req);
-
-      if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
-        this.sendError(res, 'lead_ids must be a non-empty array');
-        return;
-      }
-
-      const result = await this.leadService.deleteLeads(lead_ids, currentUser);
-      this.sendSuccess(res, result, 'Leads deleted successfully');
-
-    } catch (error: any) {
-      console.error('Delete leads controller error:', error);
-      
-      if (error.message.includes('Access denied') || error.message.includes('permission')) {
-        this.sendForbidden(res, error.message);
-      } else {
-        this.sendInternalError(res, 'Failed to delete leads');
-      }
-    }
-  };
 }
