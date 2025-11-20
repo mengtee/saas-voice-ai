@@ -21,6 +21,7 @@ import {
   UserPlus,
   Inbox,
   Radio,
+  Bot,
 } from "lucide-react";
 
 const navigation = [
@@ -38,6 +39,11 @@ const navigation = [
     name: "Contacts",
     href: "/contacts",
     icon: Users,
+  },
+  {
+    name: "AI Agents",
+    href: "/agents",
+    icon: Bot,
   },
   {
     name: "Broadcasts",
@@ -106,7 +112,7 @@ export function Sidebar() {
   return (
     <div
       className={cn(
-        "fixed left-0 top-0 z-40 flex h-screen flex-col border-r bg-background transition-all duration-300",
+        "fixed left-0 top-0 z-60 flex h-screen flex-col border-r bg-background transition-all duration-300",
         sidebarOpen ? "w-64" : "w-16"
       )}
     >
