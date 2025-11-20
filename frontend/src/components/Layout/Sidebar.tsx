@@ -17,6 +17,9 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  HelpCircle,
+  UserPlus,
+  Inbox,
 } from "lucide-react";
 
 const navigation = [
@@ -25,9 +28,14 @@ const navigation = [
     href: "/dashboard",
     icon: LayoutDashboard,
   },
+    {
+    name: "Inbox",
+    href: "/inbox",
+    icon: Inbox,
+  },
   {
-    name: "Leads",
-    href: "/leads",
+    name: "Contacts",
+    href: "/contacts",
     icon: Users,
   },
   {
@@ -49,6 +57,19 @@ const navigation = [
     name: "Analytics",
     href: "/analytics",
     icon: BarChart3,
+  },
+];
+
+const bottomNavigation = [
+  {
+    name: "Help & Support",
+    href: "/help",
+    icon: HelpCircle,
+  },
+  {
+    name: "Invite Users",
+    href: "/invite",
+    icon: UserPlus,
   },
   {
     name: "Settings",
@@ -152,14 +173,14 @@ export function Sidebar() {
         })}
       </nav>
 
-      <Separator />
-
-      {/* User Section */}
-      <div className="p-4">
-        <Link href="/settings" className="block">
+      <div className="mt-auto">
+        <Separator />
+        
+        {/* User Section */}
+        <div className="p-4">
           <div
             className={cn(
-              "flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50 cursor-pointer",
+              "flex items-center gap-3 rounded-lg p-2",
               !sidebarOpen && "justify-center p-1"
             )}
           >
@@ -189,7 +210,31 @@ export function Sidebar() {
               </div>
             )}
           </div>
-        </Link>
+        </div>
+
+        <Separator />
+        
+        {/* Bottom Navigation */}
+        <nav className="space-y-1 p-2">
+          {bottomNavigation.map((item) => {
+            const isActive = pathname === item.href;
+
+            return (
+              <Link key={item.name} href={item.href}>
+                <Button
+                  variant={isActive ? "secondary" : "ghost"}
+                  className={cn(
+                    "w-full justify-start gap-3 h-11",
+                    !sidebarOpen && "px-2 justify-center"
+                  )}
+                >
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                  {sidebarOpen && <span className="truncate">{item.name}</span>}
+                </Button>
+              </Link>
+            );
+          })}
+        </nav>
       </div>
     </div>
   );
