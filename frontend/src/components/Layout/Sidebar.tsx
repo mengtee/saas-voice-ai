@@ -22,6 +22,8 @@ import {
   Inbox,
   Radio,
   Bot,
+  Share2,
+  Puzzle,
 } from "lucide-react";
 
 const navigation = [
@@ -82,6 +84,19 @@ const bottomNavigation = [
     name: "Settings",
     href: "/settings",
     icon: Settings,
+  },
+];
+
+const configurationNavigation = [
+  {
+    name: "Channels",
+    href: "/channels",
+    icon: Share2,
+  },
+  {
+    name: "Integrations",
+    href: "/integrations",
+    icon: Puzzle,
   },
 ];
 
@@ -180,7 +195,30 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="mt-auto">
+      <div className="mt-auto space-y-4">
+        <Separator />
+
+        {/* Configuration Links */}
+        <nav className="space-y-1 px-2">
+          {configurationNavigation.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link key={item.name} href={item.href}>
+                <Button
+                  variant={isActive ? "secondary" : "ghost"}
+                  className={cn(
+                    "w-full justify-start gap-3 h-11",
+                    !sidebarOpen && "px-2 justify-center"
+                  )}
+                >
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                  {sidebarOpen && <span className="truncate">{item.name}</span>}
+                </Button>
+              </Link>
+            );
+          })}
+        </nav>
+
         <Separator />
         
         {/* User Section */}
