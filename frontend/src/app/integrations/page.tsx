@@ -136,7 +136,6 @@ export default function IntegrationsPage() {
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-semibold">Integrations</h1>
                 <p className="text-muted-foreground">
                   Connect your CRM, messaging tools, and automation partners to Funnel AI.
                 </p>

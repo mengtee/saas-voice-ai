@@ -199,7 +199,6 @@ export default function AnalyticsPage() {
           {/* Header */}
           <div className="flex flex-col sm:flex-row gap-4 justify-between">
             <div>
-              <h2 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h2>
               <p className="text-muted-foreground">
                 Comprehensive insights into your calling campaigns and lead performance
               </p>

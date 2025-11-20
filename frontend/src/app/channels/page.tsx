@@ -298,7 +298,6 @@ export default function ChannelsPage() {
                   <Sparkles className="h-3.5 w-3.5 text-amber-300" />
                   Channel catalog
                 </div>
-                <h1 className="text-3xl font-semibold">Manage all inbound funnels</h1>
                 <p className="text-slate-300">
                   Connect messaging apps, calls, and custom entry points so AI agents can respond wherever prospects reach out.
                 </p>

@@ -129,7 +129,6 @@ export default function CallsPage() {
         {/* Header Actions */}
         <div className="flex flex-col sm:flex-row gap-4 justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Call Center</h2>
             <p className="text-muted-foreground">
               Monitor live calls and view call center performance
             </p>

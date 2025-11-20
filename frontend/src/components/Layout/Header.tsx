@@ -53,6 +53,12 @@ export function Header() {
     switch (currentPage) {
       case 'dashboard':
         return 'Dashboard';
+      case 'contacts':
+        return 'Contacts';
+      case 'agents':
+        return 'AI Agents';
+      case 'broadcasts':
+        return 'Broadcasts';
       case 'leads':
         return 'Lead Management';
       case 'calls':
@@ -61,6 +67,10 @@ export function Header() {
         return 'Appointments';
       case 'whatsapp':
         return 'WhatsApp Follow-ups';
+      case 'channels':
+        return 'Channels';
+      case 'integrations':
+        return 'Integrations';
       case 'settings':
         return 'Settings';
       default:

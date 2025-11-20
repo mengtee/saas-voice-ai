@@ -193,15 +193,6 @@ export default function AgentsPage() {
         <div className="flex h-[calc(100vh-120px)] gap-6">
           {/* Left Sidebar */}
           <div className="w-64 flex flex-col space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold">AI Agents</h2>
-              <div className="flex gap-1">
-                <Button variant="ghost" size="sm">
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
 
             {/* Agent Type Filters */}
             <div className="space-y-1">
