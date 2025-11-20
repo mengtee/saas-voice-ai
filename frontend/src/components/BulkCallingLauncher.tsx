@@ -52,15 +52,25 @@ interface ApiLead {
 interface BulkCallingLauncherProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  preSelectedLeads?: string[];
+  campaignName?: string;
 }
 
-export function BulkCallingLauncher({ isOpen, onOpenChange }: BulkCallingLauncherProps) {
+export function BulkCallingLauncher({ isOpen, onOpenChange, preSelectedLeads, campaignName }: BulkCallingLauncherProps) {
   const [leads, setLeads] = useState<BackendLead[]>([]);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   const [showCampaignCreation, setShowCampaignCreation] = useState(false);
+
+  // Set pre-selected leads when provided
+  useEffect(() => {
+    if (preSelectedLeads && preSelectedLeads.length > 0) {
+      setSelectedLeads(preSelectedLeads);
+      setShowCampaignCreation(true); // Skip to campaign creation if leads are pre-selected
+    }
+  }, [preSelectedLeads]);
 
   // Debounce search to avoid too many API calls
   useEffect(() => {
@@ -349,6 +359,7 @@ export function BulkCallingLauncher({ isOpen, onOpenChange }: BulkCallingLaunche
 
               <BatchCalling 
                 selectedLeads={selectedLeads}
+                defaultCampaignName={campaignName}
                 onCampaignStart={() => {
                   handleCampaignCreated();
                 }}

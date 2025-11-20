@@ -6,6 +6,7 @@ export interface Campaign {
   tenant_id: string;
   name: string;
   agent_id: string;
+  campaign_type: 'voice_call' | 'sms' | 'whatsapp' | 'email';
   status: 'draft' | 'scheduled' | 'running' | 'paused' | 'completed' | 'failed';
   custom_message?: string;
   scheduled_at?: string;
@@ -50,6 +51,7 @@ export class CampaignService extends BaseService {
     name: string,
     agentId: string,
     leadIds: string[],
+    campaignType: 'voice_call' | 'sms' | 'whatsapp' | 'email' = 'voice_call',
     customMessage?: string,
     scheduledAt?: string
   ): Promise<{ success: boolean; data?: Campaign; error?: string }> {
@@ -82,8 +84,8 @@ export class CampaignService extends BaseService {
       
       // Create campaign record with batch ID
       const campaignQuery = `
-        INSERT INTO campaigns (id, tenant_id, name, agent_id, status, custom_message, scheduled_at, total_leads, lead_ids, batch_id, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+        INSERT INTO campaigns (id, tenant_id, name, agent_id, campaign_type, status, custom_message, scheduled_at, total_leads, lead_ids, batch_id, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
         RETURNING *
       `;
       
@@ -94,6 +96,7 @@ export class CampaignService extends BaseService {
         tenantId,
         name,
         agentId,
+        campaignType,
         status,
         customMessage,
         scheduledAt && scheduledAt.trim() ? scheduledAt : null,

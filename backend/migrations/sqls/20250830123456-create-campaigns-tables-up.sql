@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     tenant_id VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
     agent_id VARCHAR(255) NOT NULL,
+    campaign_type VARCHAR(20) NOT NULL DEFAULT 'voice_call', -- 'voice_call', 'sms', 'whatsapp', 'email'
     status VARCHAR(50) NOT NULL DEFAULT 'draft', -- 'draft', 'scheduled', 'running', 'paused', 'completed', 'failed'
     custom_message TEXT,
     scheduled_at TIMESTAMP,
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS campaign_calls (
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_campaigns_tenant_id ON campaigns(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_type ON campaigns(campaign_type);
 CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
 CREATE INDEX IF NOT EXISTS idx_campaigns_created_at ON campaigns(created_at);
 

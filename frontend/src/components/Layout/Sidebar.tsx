@@ -20,6 +20,7 @@ import {
   HelpCircle,
   UserPlus,
   Inbox,
+  Radio,
 } from "lucide-react";
 
 const navigation = [
@@ -39,14 +40,14 @@ const navigation = [
     icon: Users,
   },
   {
+    name: "Broadcasts",
+    href: "/broadcasts",
+    icon: Radio,
+  },
+  {
     name: "Calls",
     href: "/calls",
     icon: Phone,
-  },
-  {
-    name: "WhatsApp",
-    href: "/whatsapp",
-    icon: MessageCircle,
   },
   {
     name: "Calendar",

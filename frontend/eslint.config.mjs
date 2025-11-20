@@ -22,7 +22,7 @@ const eslintConfig = [
   },
   {
     rules: {
-      "no-console": ["warn", { "allow": ["warn", "error"] }],
+      "no-console": ["warn", { "allow": ["warn", "error", "info"] }],
     },
   },
 ];

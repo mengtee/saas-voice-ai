@@ -49,7 +49,7 @@ export function RealTimeMonitor() {
   const [selectedCall, setSelectedCall] = useState<string | null>(null);
 
   const { isConnected, error, sendMessage } = useWebSocket(
-    process.env.NODE_ENV === 'development' ? 'ws://localhost:3001' : null,
+    null, // Temporarily disabled until WebSocket server is implemented
     {
       onMessage: (data) => {
         switch (data.type) {

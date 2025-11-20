@@ -5,9 +5,8 @@ import { MainLayout } from '@/components/Layout/MainLayout';
 import { useAppStore } from '@/store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Phone, Pause, Square, Clock, TrendingUp, RefreshCw } from 'lucide-react';
+import { Phone, Square, Clock, TrendingUp, RefreshCw } from 'lucide-react';
 import { apiClient } from '@/services/api';
-import { BulkCallingLauncher } from '@/components/BulkCallingLauncher';
 import { RealTimeMonitor } from '@/components/RealTimeMonitor';
 import { WebhookProcessor } from '@/components/WebhookProcessor';
 import { CallRecording } from '@/components/CallRecording';
@@ -37,7 +36,6 @@ export default function CallsPage() {
     endTime: string;
   }>>([]);
   const [loading, setLoading] = useState(true);
-  const [bulkCallingOpen, setBulkCallingOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
@@ -133,7 +131,7 @@ export default function CallsPage() {
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Call Center</h2>
             <p className="text-muted-foreground">
-              Monitor and manage AI-powered outbound calls
+              Monitor live calls and view call center performance
             </p>
             <div className="flex items-center gap-2 mt-2">
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -158,13 +156,9 @@ export default function CallsPage() {
               <RefreshCw className={`mr-2 h-4 w-4 ${(loading || isRefreshing) ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <Button onClick={() => setBulkCallingOpen(true)}>
+            <Button variant="outline" onClick={() => window.location.href = '/broadcasts'}>
               <Phone className="mr-2 h-4 w-4" />
-              Create Campaign
-            </Button>
-            <Button variant="outline">
-              <Pause className="mr-2 h-4 w-4" />
-              Pause Campaign
+              Manage Campaigns
             </Button>
           </div>
         </div>
@@ -390,12 +384,6 @@ export default function CallsPage() {
         <RealTimeMonitor />
         <WebhookProcessor /> 
         <CallRecording /> 
-      
-        {/* Put BulkCallingLauncher back so the button works */}
-        <BulkCallingLauncher 
-          isOpen={bulkCallingOpen}
-          onOpenChange={setBulkCallingOpen}
-        />
       </div>
     </MainLayout>
   );

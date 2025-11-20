@@ -13,6 +13,7 @@ export function createCampaignsRoutes(pool: Pool, config: Config) {
       name: string;
       agentId: string;
       leadIds: string[];
+      campaignType?: 'voice_call' | 'sms' | 'whatsapp' | 'email';
       customMessage?: string;
       scheduledAt?: string;
     };
@@ -29,7 +30,7 @@ export function createCampaignsRoutes(pool: Pool, config: Config) {
   // Create a new campaign
   router.post("/", authenticateToken, async (req: CreateCampaignRequest, res: Response) => {
     try {
-      const { name, agentId, leadIds, customMessage, scheduledAt } = req.body;
+      const { name, agentId, leadIds, campaignType = 'voice_call', customMessage, scheduledAt } = req.body;
       const tenantId = (req as any).user?.tenant_id;
 
       if (!tenantId) {
@@ -51,6 +52,7 @@ export function createCampaignsRoutes(pool: Pool, config: Config) {
         name,
         agentId,
         leadIds,
+        campaignType,
         customMessage,
         scheduledAt
       );
