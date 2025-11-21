@@ -81,7 +81,7 @@ const channelConfigs: ChannelConfig[] = [
       "Two-way conversations synced with inbox",
       "Webhook fallback + delivery receipts",
     ],
-    primaryAction: "Configure webhook",
+    primaryAction: "Connect",
     secondaryAction: "View docs",
     metrics: "24 conversations today",
     tag: {
