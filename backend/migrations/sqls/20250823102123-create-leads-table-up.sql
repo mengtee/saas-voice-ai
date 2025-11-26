@@ -1,17 +1,19 @@
--- Create leads table with agent privacy support
+-- Create leads table matching automation-backend schema
 CREATE TABLE IF NOT EXISTS leads (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL,
-    assigned_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- Made NOT NULL for agent privacy
-    date TIMESTAMP WITH TIME ZONE NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    phone_number VARCHAR(50) NOT NULL,
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    assigned_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255),
+    phone_number VARCHAR(50),
     email VARCHAR(255),
     purpose VARCHAR(255),
-    status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'called', 'scheduled', 'completed', 'failed')),
+    lead_source VARCHAR(255),
+    source_campaign_id VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'pending',
+    priority VARCHAR(50),
     notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Add indexes optimized for agent privacy queries

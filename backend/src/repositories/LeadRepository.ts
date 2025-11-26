@@ -2,9 +2,9 @@ import { Pool, PoolClient } from 'pg';
 import { BaseRepository } from './BaseRepository';
 
 export interface Lead {
-  id: string;
-  tenant_id: string;
-  assigned_user_id: string;
+  id: number;
+  tenant_id: number;
+  assigned_user_id: number;
   date: string;
   name: string;
   phone_number: string;
@@ -17,8 +17,8 @@ export interface Lead {
 }
 
 export interface CreateLeadInput {
-  tenant_id: string;
-  assigned_user_id: string;
+  tenant_id: number;
+  assigned_user_id: number;
   date: string;
   name: string;
   phone_number: string;
@@ -29,7 +29,7 @@ export interface CreateLeadInput {
 }
 
 export interface UpdateLeadInput {
-  assigned_user_id?: string;
+  assigned_user_id?: number;
   date?: string;
   name?: string;
   phone_number?: string;
@@ -41,7 +41,7 @@ export interface UpdateLeadInput {
 
 export interface LeadFilters {
   status?: string;
-  assigned_user_id?: string;
+  assigned_user_id?: number;
   date_from?: string;
   date_to?: string;
   search?: string;

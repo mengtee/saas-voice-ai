@@ -2,8 +2,8 @@ import { Pool, PoolClient } from 'pg';
 import { BaseRepository } from './BaseRepository';
 
 export interface User {
-  id: string;
-  tenant_id: string;
+  id: number;
+  tenant_id: number;
   email: string;
   password_hash: string;
   name: string;
@@ -14,7 +14,7 @@ export interface User {
 }
 
 export interface CreateUserInput {
-  tenant_id: string;
+  tenant_id: number;
   email: string;
   password_hash: string;
   name: string;
