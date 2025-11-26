@@ -257,7 +257,7 @@ export const createLeadsRoutes = (pool: Pool, config: Config) => {
       if (notes) updateData.notes = notes;
       if (status) updateData.status = status;
 
-      const result = await leadService.updateLead(id, updateData, tenantId, userRole, userId);
+      const result = await leadService.updateLead(parseInt(id), updateData, tenantId, userRole, userId);
 
       res.json({
         success: true,
@@ -294,7 +294,7 @@ export const createLeadsRoutes = (pool: Pool, config: Config) => {
         }
 
         // Use leadService with role-based access control
-        const success = await leadService.deleteLead(id, tenantId, userRole, userId);
+        const success = await leadService.deleteLead(parseInt(id), tenantId, userRole, userId);
 
         if (!success) {
           return res.status(404).json({

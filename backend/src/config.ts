@@ -19,9 +19,22 @@ export interface Config{
 
 export const loadConfig = async (): Promise<Config> => {
     const env = process.env.ENV ?? "dev";
+    
+    // Build DATABASE_URL from individual components if not provided directly
+    let databaseUrl = process.env.DATABASE_URL || "";
+    if (!databaseUrl && process.env.DB_HOST) {
+        const dbHost = process.env.DB_HOST;
+        const dbPort = process.env.DB_PORT || "5432";
+        const dbName = process.env.DB_NAME || "postgres";
+        const dbUser = process.env.DB_USER || "postgres";
+        const dbPassword = process.env.DB_PASSWORD || "";
+        
+        databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
+    }
+    
     const config: Config = {
         env: env as Env,
-        databaseUrl: process.env.DATABASE_URL || "",
+        databaseUrl: databaseUrl,
         elevenLabApiKey: process.env.ELEVENLABS_API_KEY || "",
         elevenLabAgentId: process.env.ELEVENLABS_AGENT_ID || "",
         twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || "",
@@ -34,7 +47,7 @@ export const loadConfig = async (): Promise<Config> => {
     };
     
     if (!config.databaseUrl) {
-        throw new Error("DATABASE_URL is required");
+        throw new Error("DATABASE_URL or DB_HOST configuration is required");
     }
 
     if (!config.elevenLabApiKey) {

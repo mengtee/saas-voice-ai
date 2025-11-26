@@ -3,10 +3,10 @@ import { Pool } from 'pg';
 import { Config } from '../config';
 
 export interface Appointment {
-  id: string;
-  tenant_id: string;
-  lead_id?: string;
-  campaign_id?: string;
+  id: number;
+  tenant_id: number;
+  lead_id?: number;
+  campaign_id?: number;
   conversation_id?: string;
   cal_booking_id?: string;
   cal_event_type_id?: string;
@@ -34,9 +34,9 @@ export interface Appointment {
 }
 
 export interface CreateAppointmentData {
-  tenant_id: string;
-  lead_id?: string;
-  campaign_id?: string;
+  tenant_id: number;
+  lead_id?: number;
+  campaign_id?: number;
   conversation_id?: string;
   cal_booking_id?: string;
   cal_event_type_id?: string;
@@ -287,7 +287,7 @@ export class AppointmentService extends BaseService {
   /**
    * Sync Cal.com booking with local database
    */
-  async syncCalComBooking(calBooking: CalComBookingResponse, tenantId: string, leadId?: string, campaignId?: string, conversationId?: string): Promise<{ success: boolean; appointment?: Appointment; error?: string }> {
+  async syncCalComBooking(calBooking: CalComBookingResponse, tenantId: number, leadId?: number, campaignId?: number, conversationId?: string): Promise<{ success: boolean; appointment?: Appointment; error?: string }> {
     try {
       const appointmentData: CreateAppointmentData = {
         tenant_id: tenantId,
@@ -323,7 +323,7 @@ export class AppointmentService extends BaseService {
   /**
    * Get appointments for a tenant
    */
-  async getAppointments(tenantId: string, limit = 50, offset = 0): Promise<{ success: boolean; appointments?: Appointment[]; total?: number; error?: string }> {
+  async getAppointments(tenantId: number, limit = 50, offset = 0): Promise<{ success: boolean; appointments?: Appointment[]; total?: number; error?: string }> {
     try {
       const countQuery = 'SELECT COUNT(*) FROM appointments WHERE tenant_id = $1';
       const countResult = await this.query(countQuery, [tenantId]);
@@ -350,7 +350,7 @@ export class AppointmentService extends BaseService {
   /**
    * Get appointment by ID
    */
-  async getAppointment(appointmentId: string, tenantId: string): Promise<{ success: boolean; appointment?: Appointment; error?: string }> {
+  async getAppointment(appointmentId: string, tenantId: number): Promise<{ success: boolean; appointment?: Appointment; error?: string }> {
     try {
       const query = `
         SELECT a.*, l.name as lead_name, c.name as campaign_name
@@ -376,7 +376,7 @@ export class AppointmentService extends BaseService {
   /**
    * Update appointment status
    */
-  async updateAppointmentStatus(appointmentId: string, tenantId: string, status: Appointment['status'], bookingStatus?: Appointment['booking_status']): Promise<{ success: boolean; error?: string }> {
+  async updateAppointmentStatus(appointmentId: string, tenantId: number, status: Appointment['status'], bookingStatus?: Appointment['booking_status']): Promise<{ success: boolean; error?: string }> {
     try {
       const updates = ['status = $3', 'updated_at = NOW()'];
       const values = [appointmentId, tenantId, status];

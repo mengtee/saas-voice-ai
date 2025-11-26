@@ -47,52 +47,33 @@ export class CampaignService extends BaseService {
   }
 
   async createCampaign(
-    tenantId: string,
+    tenantId: number,
     name: string,
     agentId: string,
-    leadIds: string[],
+    leadIds: number[],
     campaignType: 'voice_call' | 'sms' | 'whatsapp' | 'email' = 'voice_call',
     customMessage?: string,
     scheduledAt?: string
   ): Promise<{ success: boolean; data?: Campaign; error?: string }> {
     try {
-      const campaignId = `campaign_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
       // Get lead phone numbers for batch calling
       const leadsQuery = `SELECT id, phone_number, name, email, purpose FROM leads WHERE id = ANY($1) AND tenant_id = $2`;
-      const leads = await this.query<{ id: string; phone_number: string; name: string; email: string; purpose: string }>(leadsQuery, [leadIds, tenantId]);
+      const leads = await this.query<{ id: number; phone_number: string; name: string; email: string; purpose: string }>(leadsQuery, [leadIds, tenantId]);
       
       if (leads.rows.length === 0) {
         return { success: false, error: 'No valid leads found' };
       }
 
-      const phoneNumbers = leads.rows.map(lead => lead.phone_number);
-      
-      // Create batch calling campaign with ElevenLabs
-      const batchResult = await this.elevenLabsService.createBatchCalling(phoneNumbers, {
-        campaignId: campaignId,
-        campaignName: name,
-        customMessage: customMessage,
-        agentPhoneNumberId: process.env.ELEVENLABS_PHONE_NUMBER_ID,
-        scheduledTime: scheduledAt ? Math.floor(new Date(scheduledAt).getTime() / 1000) : undefined,
-        leads: leads.rows
-      });
-
-      if (!batchResult.success) {
-        return { success: false, error: batchResult.error || 'Failed to create batch calling campaign' };
-      }
-      
-      // Create campaign record with batch ID
+      // Create campaign record first to get auto-generated ID
       const campaignQuery = `
-        INSERT INTO campaigns (id, tenant_id, name, agent_id, campaign_type, status, custom_message, scheduled_at, total_leads, lead_ids, batch_id, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+        INSERT INTO campaigns (tenant_id, name, agent_id, campaign_type, status, custom_message, scheduled_at, total_leads, lead_ids, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
         RETURNING *
       `;
       
-      const status = scheduledAt ? 'scheduled' : 'running'; // ElevenLabs batch starts immediately
+      const status = scheduledAt ? 'scheduled' : 'running';
       
       const result = await this.query<Campaign>(campaignQuery, [
-        campaignId,
         tenantId,
         name,
         agentId,
@@ -101,8 +82,7 @@ export class CampaignService extends BaseService {
         customMessage,
         scheduledAt && scheduledAt.trim() ? scheduledAt : null,
         leadIds.length,
-        JSON.stringify(leadIds),
-        batchResult.batchId
+        JSON.stringify(leadIds)
       ]);
 
       if (result.rows.length === 0) {
@@ -111,8 +91,32 @@ export class CampaignService extends BaseService {
 
       const campaign = result.rows[0];
 
+      // Now create the ElevenLabs batch using the generated campaign ID
+      const phoneNumbers = leads.rows.map(lead => lead.phone_number);
+      
+      const batchResult = await this.elevenLabsService.createBatchCalling(phoneNumbers, {
+        campaignId: campaign.id.toString(),
+        campaignName: name,
+        customMessage: customMessage,
+        agentPhoneNumberId: process.env.ELEVENLABS_PHONE_NUMBER_ID,
+        scheduledTime: scheduledAt ? Math.floor(new Date(scheduledAt).getTime() / 1000) : undefined,
+        leads: leads.rows
+      });
+
+      if (!batchResult.success) {
+        // Clean up the created campaign since batch creation failed
+        await this.query('DELETE FROM campaigns WHERE id = $1', [campaign.id]);
+        return { success: false, error: batchResult.error || 'Failed to create batch calling campaign' };
+      }
+
+      // Update campaign with batch ID
+      if (batchResult.batchId) {
+        await this.query('UPDATE campaigns SET batch_id = $1 WHERE id = $2', [batchResult.batchId, campaign.id]);
+        campaign.batch_id = batchResult.batchId;
+      }
+
       // Create campaign calls for tracking
-      await this.createCampaignCalls(campaignId, tenantId, leadIds);
+      await this.createCampaignCalls(Number(campaign.id), tenantId, leadIds);
 
       return { success: true, data: campaign };
     } catch (error) {
@@ -121,20 +125,19 @@ export class CampaignService extends BaseService {
     }
   }
 
-  private async createCampaignCalls(campaignId: string, tenantId: string, leadIds: string[]): Promise<void> {
+  private async createCampaignCalls(campaignId: number, tenantId: number, leadIds: number[]): Promise<void> {
     try {
       // Get lead details
       const leadsQuery = `SELECT id, phone_number FROM leads WHERE id = ANY($1) AND tenant_id = $2`;
-      const leads = await this.query<{ id: string; phone_number: string }>(leadsQuery, [leadIds, tenantId]);
+      const leads = await this.query<{ id: number; phone_number: string }>(leadsQuery, [leadIds, tenantId]);
 
-      // Create campaign call records
+      // Create campaign call records with auto-generated IDs
       const insertPromises = leads.rows.map(lead => {
-        const callId = `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const query = `
-          INSERT INTO campaign_calls (id, campaign_id, lead_id, phone_number, status, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, 'pending', NOW(), NOW())
+          INSERT INTO campaign_calls (campaign_id, lead_id, phone_number, status, created_at, updated_at)
+          VALUES ($1, $2, $3, 'pending', NOW(), NOW())
         `;
-        return this.query(query, [callId, campaignId, lead.id, lead.phone_number]);
+        return this.query(query, [campaignId, lead.id, lead.phone_number]);
       });
 
       await Promise.all(insertPromises);
@@ -144,7 +147,7 @@ export class CampaignService extends BaseService {
     }
   }
 
-  async startCampaign(campaignId: string, tenantId: string): Promise<{ success: boolean; error?: string }> {
+  async startCampaign(campaignId: number, tenantId: number): Promise<{ success: boolean; error?: string }> {
     try {
       // Get campaign with batch ID
       const campaignQuery = `SELECT * FROM campaigns WHERE id = $1 AND tenant_id = $2`;
@@ -180,7 +183,7 @@ export class CampaignService extends BaseService {
     }
   }
 
-  private async processCampaignCalls(campaignId: string, tenantId: string): Promise<void> {
+  private async processCampaignCalls(campaignId: number, tenantId: number): Promise<void> {
     try {
       // Get pending calls for this campaign
       const callsQuery = `
@@ -211,7 +214,7 @@ export class CampaignService extends BaseService {
     }
   }
 
-  private async processSingleCall(call: CampaignCall, tenantId: string): Promise<void> {
+  private async processSingleCall(call: CampaignCall, tenantId: number): Promise<void> {
     try {
       // Update call status to calling
       const updateStatusQuery = `
@@ -237,7 +240,7 @@ export class CampaignService extends BaseService {
         await this.query(updateCallQuery, [callResult.conversationId, call.id]);
 
         // Update campaign stats
-        await this.updateCampaignStats(call.campaign_id, 'successful');
+        await this.updateCampaignStats(Number(call.campaign_id), 'successful');
       } else {
         // Mark call as failed
         const updateFailedQuery = `
@@ -248,7 +251,7 @@ export class CampaignService extends BaseService {
         await this.query(updateFailedQuery, [callResult.error || 'Unknown error', call.id]);
 
         // Update campaign stats
-        await this.updateCampaignStats(call.campaign_id, 'failed');
+        await this.updateCampaignStats(Number(call.campaign_id), 'failed');
       }
     } catch (error) {
       console.error('Error processing single call:', error);
@@ -262,11 +265,11 @@ export class CampaignService extends BaseService {
       await this.query(updateFailedQuery, [error instanceof Error ? error.message : 'Unknown error', call.id]);
 
       // Update campaign stats
-      await this.updateCampaignStats(call.campaign_id, 'failed');
+      await this.updateCampaignStats(Number(call.campaign_id), 'failed');
     }
   }
 
-  private async updateCampaignStats(campaignId: string, result: 'successful' | 'failed'): Promise<void> {
+  private async updateCampaignStats(campaignId: number, result: 'successful' | 'failed'): Promise<void> {
     try {
       const column = result === 'successful' ? 'successful' : 'failed';
       const updateQuery = `
@@ -280,7 +283,7 @@ export class CampaignService extends BaseService {
     }
   }
 
-  private async completeCampaign(campaignId: string, tenantId: string): Promise<void> {
+  private async completeCampaign(campaignId: number, tenantId: number): Promise<void> {
     try {
       const updateQuery = `
         UPDATE campaigns 
@@ -293,7 +296,7 @@ export class CampaignService extends BaseService {
     }
   }
 
-  async pauseCampaign(campaignId: string, tenantId: string): Promise<{ success: boolean; error?: string }> {
+  async pauseCampaign(campaignId: number, tenantId: number): Promise<{ success: boolean; error?: string }> {
     try {
       const updateQuery = `
         UPDATE campaigns 
@@ -309,7 +312,7 @@ export class CampaignService extends BaseService {
     }
   }
 
-  async getCampaigns(tenantId: string): Promise<{ success: boolean; campaigns?: Campaign[]; error?: string }> {
+  async getCampaigns(tenantId: number): Promise<{ success: boolean; campaigns?: Campaign[]; error?: string }> {
     try {
       const query = `
         SELECT * FROM campaigns 
@@ -325,7 +328,7 @@ export class CampaignService extends BaseService {
     }
   }
 
-  async getCampaign(campaignId: string, tenantId: string): Promise<{ success: boolean; campaign?: Campaign; error?: string }> {
+  async getCampaign(campaignId: number, tenantId: number): Promise<{ success: boolean; campaign?: Campaign; error?: string }> {
     try {
       const query = `SELECT * FROM campaigns WHERE id = $1 AND tenant_id = $2`;
       const result = await this.query<Campaign>(query, [campaignId, tenantId]);
@@ -341,7 +344,7 @@ export class CampaignService extends BaseService {
     }
   }
 
-  async getCampaignCalls(campaignId: string, tenantId: string): Promise<{ success: boolean; calls?: CampaignCall[]; error?: string }> {
+  async getCampaignCalls(campaignId: number, tenantId: number): Promise<{ success: boolean; calls?: CampaignCall[]; error?: string }> {
     try {
       const query = `
         SELECT cc.*, l.name as lead_name 
@@ -362,7 +365,7 @@ export class CampaignService extends BaseService {
   /**
    * Sync campaign status with ElevenLabs batch status
    */
-  async syncBatchStatus(campaignId: string, batchId: string): Promise<{ success: boolean; error?: string }> {
+  async syncBatchStatus(campaignId: number, batchId: string): Promise<{ success: boolean; error?: string }> {
     try {
       // Get batch status from ElevenLabs
       const batchStatus = await this.elevenLabsService.getBatchStatus(batchId);
@@ -422,7 +425,7 @@ export class CampaignService extends BaseService {
   /**
    * Cancel a batch calling campaign
    */
-  async cancelCampaign(campaignId: string, tenantId: string): Promise<{ success: boolean; error?: string }> {
+  async cancelCampaign(campaignId: number, tenantId: number): Promise<{ success: boolean; error?: string }> {
     try {
       // Get campaign with batch ID
       const campaignQuery = `SELECT * FROM campaigns WHERE id = $1 AND tenant_id = $2`;

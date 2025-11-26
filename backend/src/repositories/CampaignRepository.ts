@@ -2,8 +2,8 @@ import { Pool, PoolClient } from 'pg';
 import { BaseRepository } from './BaseRepository';
 
 export interface Campaign {
-  id: string;
-  tenant_id: string;
+  id: number;
+  tenant_id: number;
   name: string;
   agent_id: string;
   campaign_type: 'voice_call' | 'sms' | 'whatsapp' | 'email';
@@ -16,16 +16,16 @@ export interface Campaign {
   called: number;
   successful: number;
   failed: number;
-  lead_ids: string[];
+  lead_ids: number[];
   batch_id?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface CampaignCall {
-  id: string;
-  campaign_id: string;
-  lead_id: string;
+  id: number;
+  campaign_id: number;
+  lead_id: number;
   phone_number: string;
   status: 'pending' | 'calling' | 'completed' | 'failed';
   conversation_id?: string;
@@ -39,8 +39,8 @@ export interface CampaignCall {
 }
 
 export interface CreateCampaignInput {
-  id: string;
-  tenant_id: string;
+  id?: number;
+  tenant_id: number;
   name: string;
   agent_id: string;
   campaign_type?: 'voice_call' | 'sms' | 'whatsapp' | 'email';
@@ -48,7 +48,7 @@ export interface CreateCampaignInput {
   custom_message?: string;
   scheduled_at?: string;
   total_leads: number;
-  lead_ids: string[];
+  lead_ids: number[];
   batch_id?: string;
 }
 
@@ -68,9 +68,9 @@ export interface UpdateCampaignInput {
 }
 
 export interface CreateCampaignCallInput {
-  id: string;
-  campaign_id: string;
-  lead_id: string;
+  id?: number;
+  campaign_id: number;
+  lead_id: number;
   phone_number: string;
   status?: 'pending' | 'calling' | 'completed' | 'failed';
   conversation_id?: string;
@@ -92,7 +92,7 @@ export class CampaignRepository extends BaseRepository {
   }
 
   // Campaign methods
-  async findById(id: string): Promise<Campaign | null> {
+  async findById(id: number): Promise<Campaign | null> {
     const result = await this.query<Campaign>(
       'SELECT * FROM campaigns WHERE id = $1',
       [id]
@@ -100,7 +100,7 @@ export class CampaignRepository extends BaseRepository {
     return result.rows[0] || null;
   }
 
-  async findByTenantId(tenantId: string, limit?: number, offset?: number): Promise<Campaign[]> {
+  async findByTenantId(tenantId: number, limit?: number, offset?: number): Promise<Campaign[]> {
     let query = 'SELECT * FROM campaigns WHERE tenant_id = $1 ORDER BY created_at DESC';
     const params: any[] = [tenantId];
 
@@ -118,7 +118,7 @@ export class CampaignRepository extends BaseRepository {
     return result.rows;
   }
 
-  async findByStatus(tenantId: string, status: string): Promise<Campaign[]> {
+  async findByStatus(tenantId: number, status: string): Promise<Campaign[]> {
     const result = await this.query<Campaign>(
       'SELECT * FROM campaigns WHERE tenant_id = $1 AND status = $2 ORDER BY created_at DESC',
       [tenantId, status]
@@ -156,7 +156,7 @@ export class CampaignRepository extends BaseRepository {
     return result.rows[0];
   }
 
-  async update(id: string, campaignData: UpdateCampaignInput): Promise<Campaign | null> {
+  async update(id: number, campaignData: UpdateCampaignInput): Promise<Campaign | null> {
     const setClause: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
@@ -236,7 +236,7 @@ export class CampaignRepository extends BaseRepository {
     return result.rows[0] || null;
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(id: number): Promise<boolean> {
     const result = await this.query(
       'DELETE FROM campaigns WHERE id = $1',
       [id]
@@ -244,7 +244,7 @@ export class CampaignRepository extends BaseRepository {
     return result.rowCount! > 0;
   }
 
-  async countByTenantId(tenantId: string): Promise<number> {
+  async countByTenantId(tenantId: number): Promise<number> {
     const result = await this.query(
       'SELECT COUNT(*) as count FROM campaigns WHERE tenant_id = $1',
       [tenantId]
@@ -252,7 +252,7 @@ export class CampaignRepository extends BaseRepository {
     return parseInt(result.rows[0].count);
   }
 
-  async countByStatus(tenantId: string): Promise<{ status: string; count: number }[]> {
+  async countByStatus(tenantId: number): Promise<{ status: string; count: number }[]> {
     const result = await this.query(
       `SELECT status, COUNT(*) as count 
        FROM campaigns 
@@ -268,7 +268,7 @@ export class CampaignRepository extends BaseRepository {
   }
 
   // Campaign Call methods
-  async findCallById(id: string): Promise<CampaignCall | null> {
+  async findCallById(id: number): Promise<CampaignCall | null> {
     const result = await this.query<CampaignCall>(
       'SELECT * FROM campaign_calls WHERE id = $1',
       [id]
@@ -276,7 +276,7 @@ export class CampaignRepository extends BaseRepository {
     return result.rows[0] || null;
   }
 
-  async findCallsByCampaignId(campaignId: string, limit?: number, offset?: number): Promise<CampaignCall[]> {
+  async findCallsByCampaignId(campaignId: number, limit?: number, offset?: number): Promise<CampaignCall[]> {
     let query = 'SELECT * FROM campaign_calls WHERE campaign_id = $1 ORDER BY created_at DESC';
     const params: any[] = [campaignId];
 
@@ -294,7 +294,7 @@ export class CampaignRepository extends BaseRepository {
     return result.rows;
   }
 
-  async findCallsByStatus(campaignId: string, status: string): Promise<CampaignCall[]> {
+  async findCallsByStatus(campaignId: number, status: string): Promise<CampaignCall[]> {
     const result = await this.query<CampaignCall>(
       'SELECT * FROM campaign_calls WHERE campaign_id = $1 AND status = $2 ORDER BY created_at DESC',
       [campaignId, status]
@@ -350,7 +350,7 @@ export class CampaignRepository extends BaseRepository {
     return result.rows;
   }
 
-  async updateCall(id: string, callData: UpdateCampaignCallInput): Promise<CampaignCall | null> {
+  async updateCall(id: number, callData: UpdateCampaignCallInput): Promise<CampaignCall | null> {
     const setClause: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
@@ -405,7 +405,7 @@ export class CampaignRepository extends BaseRepository {
     return result.rows[0] || null;
   }
 
-  async deleteCall(id: string): Promise<boolean> {
+  async deleteCall(id: number): Promise<boolean> {
     const result = await this.query(
       'DELETE FROM campaign_calls WHERE id = $1',
       [id]
@@ -413,7 +413,7 @@ export class CampaignRepository extends BaseRepository {
     return result.rowCount! > 0;
   }
 
-  async deleteCalls(campaignId: string): Promise<number> {
+  async deleteCalls(campaignId: number): Promise<number> {
     const result = await this.query(
       'DELETE FROM campaign_calls WHERE campaign_id = $1',
       [campaignId]
@@ -421,7 +421,7 @@ export class CampaignRepository extends BaseRepository {
     return result.rowCount || 0;
   }
 
-  async countCallsByCampaignId(campaignId: string): Promise<number> {
+  async countCallsByCampaignId(campaignId: number): Promise<number> {
     const result = await this.query(
       'SELECT COUNT(*) as count FROM campaign_calls WHERE campaign_id = $1',
       [campaignId]
@@ -429,7 +429,7 @@ export class CampaignRepository extends BaseRepository {
     return parseInt(result.rows[0].count);
   }
 
-  async countCallsByStatus(campaignId: string): Promise<{ status: string; count: number }[]> {
+  async countCallsByStatus(campaignId: number): Promise<{ status: string; count: number }[]> {
     const result = await this.query(
       `SELECT status, COUNT(*) as count 
        FROM campaign_calls 

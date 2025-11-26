@@ -78,8 +78,8 @@ export abstract class BaseController {
       throw new Error('User not found in request');
     }
     return {
-      id: parseInt(req.user.id),
-      tenant_id: parseInt(req.user.tenant_id),
+      id: req.user.id,
+      tenant_id: req.user.tenant_id,
       role: req.user.role
     };
   }

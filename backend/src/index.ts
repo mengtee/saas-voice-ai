@@ -31,7 +31,7 @@ const main = async () => {
 
   const pool = new Pool({
     connectionString: config.databaseUrl,
-    ssl: config.env === "production" ? { rejectUnauthorized: false } : false,
+    ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : false,
   });
 
   // Create and mount routes with dependencies

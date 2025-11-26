@@ -34,7 +34,7 @@ export class CampaignsController extends BaseController {
       const { id } = req.params;
       const currentUser = this.getUserFromRequest(req);
 
-      const campaign = await this.campaignRepository.findById(id);
+      const campaign = await this.campaignRepository.findById(this.parseId(id));
       if (!campaign) {
         this.sendNotFound(res, 'Campaign not found');
         return;
@@ -102,7 +102,7 @@ export class CampaignsController extends BaseController {
       const { name, agent_id, custom_message, scheduled_at, campaign_type, status } = req.body;
       const currentUser = this.getUserFromRequest(req);
 
-      const existingCampaign = await this.campaignRepository.findById(id);
+      const existingCampaign = await this.campaignRepository.findById(this.parseId(id));
       if (!existingCampaign) {
         this.sendNotFound(res, 'Campaign not found');
         return;
@@ -136,7 +136,7 @@ export class CampaignsController extends BaseController {
         return;
       }
 
-      const updatedCampaign = await this.campaignRepository.update(id, updateData);
+      const updatedCampaign = await this.campaignRepository.update(this.parseId(id), updateData);
       if (!updatedCampaign) {
         this.sendNotFound(res, 'Campaign not found');
         return;
@@ -155,7 +155,7 @@ export class CampaignsController extends BaseController {
       const { id } = req.params;
       const currentUser = this.getUserFromRequest(req);
 
-      const existingCampaign = await this.campaignRepository.findById(id);
+      const existingCampaign = await this.campaignRepository.findById(this.parseId(id));
       if (!existingCampaign) {
         this.sendNotFound(res, 'Campaign not found');
         return;
@@ -171,7 +171,7 @@ export class CampaignsController extends BaseController {
         return;
       }
 
-      const deleted = await this.campaignRepository.delete(id);
+      const deleted = await this.campaignRepository.delete(this.parseId(id));
       if (!deleted) {
         this.sendNotFound(res, 'Campaign not found');
         return;
@@ -190,7 +190,7 @@ export class CampaignsController extends BaseController {
       const { id } = req.params;
       const currentUser = this.getUserFromRequest(req);
 
-      const campaign = await this.campaignRepository.findById(id);
+      const campaign = await this.campaignRepository.findById(this.parseId(id));
       if (!campaign) {
         this.sendNotFound(res, 'Campaign not found');
         return;
@@ -206,7 +206,7 @@ export class CampaignsController extends BaseController {
         return;
       }
 
-      const result = await this.campaignService.startCampaign(id, currentUser.tenant_id);
+      const result = await this.campaignService.startCampaign(this.parseId(id), currentUser.tenant_id);
       this.sendSuccess(res, result, 'Campaign started successfully');
 
     } catch (error: any) {
@@ -225,7 +225,7 @@ export class CampaignsController extends BaseController {
       const { id } = req.params;
       const currentUser = this.getUserFromRequest(req);
 
-      const campaign = await this.campaignRepository.findById(id);
+      const campaign = await this.campaignRepository.findById(this.parseId(id));
       if (!campaign) {
         this.sendNotFound(res, 'Campaign not found');
         return;
@@ -241,7 +241,7 @@ export class CampaignsController extends BaseController {
         return;
       }
 
-      const result = await this.campaignService.pauseCampaign(id, currentUser.tenant_id);
+      const result = await this.campaignService.pauseCampaign(this.parseId(id), currentUser.tenant_id);
       this.sendSuccess(res, result, 'Campaign paused successfully');
 
     } catch (error: any) {
@@ -257,7 +257,7 @@ export class CampaignsController extends BaseController {
       const currentUser = this.getUserFromRequest(req);
       const { limit, offset } = this.getPagination(req);
 
-      const campaign = await this.campaignRepository.findById(id);
+      const campaign = await this.campaignRepository.findById(this.parseId(id));
       if (!campaign) {
         this.sendNotFound(res, 'Campaign not found');
         return;
@@ -268,8 +268,8 @@ export class CampaignsController extends BaseController {
         return;
       }
 
-      const calls = await this.campaignRepository.findCallsByCampaignId(id, limit, offset);
-      const total = await this.campaignRepository.countCallsByCampaignId(id);
+      const calls = await this.campaignRepository.findCallsByCampaignId(this.parseId(id), limit, offset);
+      const total = await this.campaignRepository.countCallsByCampaignId(this.parseId(id));
 
       this.sendSuccess(res, {
         calls,
@@ -289,7 +289,7 @@ export class CampaignsController extends BaseController {
       const { id } = req.params;
       const currentUser = this.getUserFromRequest(req);
 
-      const campaign = await this.campaignRepository.findById(id);
+      const campaign = await this.campaignRepository.findById(this.parseId(id));
       if (!campaign) {
         this.sendNotFound(res, 'Campaign not found');
         return;
@@ -300,7 +300,7 @@ export class CampaignsController extends BaseController {
         return;
       }
 
-      const callStatusCounts = await this.campaignRepository.countCallsByStatus(id);
+      const callStatusCounts = await this.campaignRepository.countCallsByStatus(this.parseId(id));
       
       const statistics = {
         campaign: {

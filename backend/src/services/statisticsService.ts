@@ -65,7 +65,7 @@ export class StatisticsService extends BaseService {
   /**
    * Build role-based WHERE clause for statistics queries
    */
-  private buildRoleFilter(userRole: string, userId?: string): { clause: string; params: string[] } {
+  private buildRoleFilter(userRole: string, userId?: number): { clause: string; params: any[] } {
     if (userRole === 'admin') {
       return { clause: '', params: [] };
     }
@@ -83,13 +83,13 @@ export class StatisticsService extends BaseService {
   /**
    * Get dashboard statistics with role-based access
    */
-  async getDashboardStats(tenantId: string, userRole: string, userId?: string): Promise<DashboardStats> {
+  async getDashboardStats(tenantId: number, userRole: string, userId?: number): Promise<DashboardStats> {
     try {
       // Build role-based lead query
       const roleFilter = this.buildRoleFilter(userRole, userId);
       const leadsCondition = roleFilter.clause 
-        ? `WHERE tenant_id = $1::uuid AND assigned_user_id = $2`
-        : `WHERE tenant_id = $1::uuid`;
+        ? `WHERE tenant_id = $1 AND assigned_user_id = $2`
+        : `WHERE tenant_id = $1`;
       
       const leadsParams = roleFilter.clause ? [tenantId, userId] : [tenantId];
 
@@ -163,7 +163,7 @@ export class StatisticsService extends BaseService {
   /**
    * Get call center statistics with role-based access
    */
-  async getCallCenterStats(tenantId: string, userRole: string, userId?: string): Promise<CallCenterStats> {
+  async getCallCenterStats(tenantId: number, userRole: string, userId?: number): Promise<CallCenterStats> {
     try {
       // Since calls table doesn't exist, use campaign_calls data instead
       const campaignCallsStatsResult = await this.query<{ 
@@ -228,13 +228,13 @@ export class StatisticsService extends BaseService {
   /**
    * Get lead statistics with role-based access
    */
-  async getLeadStats(tenantId: string, userRole: string, userId?: string): Promise<LeadStats> {
+  async getLeadStats(tenantId: number, userRole: string, userId?: number): Promise<LeadStats> {
     try {
       // Build role-based lead query
       const roleFilter = this.buildRoleFilter(userRole, userId);
       const leadsCondition = roleFilter.clause 
-        ? `WHERE tenant_id = $1::uuid AND assigned_user_id = $2`
-        : `WHERE tenant_id = $1::uuid`;
+        ? `WHERE tenant_id = $1 AND assigned_user_id = $2`
+        : `WHERE tenant_id = $1`;
       
       const leadsParams = roleFilter.clause ? [tenantId, userId] : [tenantId];
 
@@ -281,7 +281,7 @@ export class StatisticsService extends BaseService {
   /**
    * Get active calls with details
    */
-  async getActiveCalls(tenantId: string): Promise<ActiveCall[]> {
+  async getActiveCalls(tenantId: number): Promise<ActiveCall[]> {
     try {
       // Use actual calls and leads tables for active calls
       const result = await this.query<{
@@ -297,7 +297,7 @@ export class StatisticsService extends BaseService {
           l.name as lead_name
          FROM calls c
          LEFT JOIN leads l ON c.lead_id = l.id
-         WHERE l.tenant_id = $1::uuid AND c.status = 'active'
+         WHERE l.tenant_id = $1 AND c.status = 'active'
          ORDER BY c.start_time DESC`,
         [tenantId]
       );
@@ -322,7 +322,7 @@ export class StatisticsService extends BaseService {
   /**
    * Get recent call history
    */
-  async getRecentCallHistory(tenantId: string, limit: number = 10): Promise<CallHistoryEntry[]> {
+  async getRecentCallHistory(tenantId: number, limit: number = 10): Promise<CallHistoryEntry[]> {
     try {
       // Use actual calls and leads tables for call history
       const result = await this.query<{
@@ -340,7 +340,7 @@ export class StatisticsService extends BaseService {
           l.name as lead_name
          FROM calls c
          LEFT JOIN leads l ON c.lead_id = l.id
-         WHERE l.tenant_id = $1::uuid AND c.status = 'completed'
+         WHERE l.tenant_id = $1 AND c.status = 'completed'
          ORDER BY c.end_time DESC
          LIMIT $2`,
         [tenantId, limit]
@@ -366,7 +366,7 @@ export class StatisticsService extends BaseService {
   /**
    * Get recent activity across all entities
    */
-  async getRecentActivity(tenantId: string, limit: number = 20): Promise<RecentActivity[]> {
+  async getRecentActivity(tenantId: number, limit: number = 20): Promise<RecentActivity[]> {
     try {
       const activities: RecentActivity[] = [];
 
@@ -452,7 +452,7 @@ export class StatisticsService extends BaseService {
   /**
    * Get active calls with role-based access
    */
-  async getActiveCallsWithDetails(tenantId: string, userRole: string, userId?: string): Promise<ActiveCall[]> {
+  async getActiveCallsWithDetails(tenantId: number, userRole: string, userId?: number): Promise<ActiveCall[]> {
     try {
       const roleFilter = this.buildRoleFilter(userRole, userId);
       const leadsCondition = roleFilter.clause 
@@ -498,7 +498,7 @@ export class StatisticsService extends BaseService {
   /**
    * Get call history with role-based access
    */
-  async getCallHistory(tenantId: string, userRole: string, userId?: string, limit: number = 10): Promise<CallHistoryEntry[]> {
+  async getCallHistory(tenantId: number, userRole: string, userId?: number, limit: number = 10): Promise<CallHistoryEntry[]> {
     try {
       const roleFilter = this.buildRoleFilter(userRole, userId);
       const leadsCondition = roleFilter.clause 
@@ -548,7 +548,7 @@ export class StatisticsService extends BaseService {
   /**
    * Get recent activity with role-based access  
    */
-  async getRecentActivityFiltered(tenantId: string, userRole: string, userId?: string, limit: number = 20): Promise<RecentActivity[]> {
+  async getRecentActivityFiltered(tenantId: number, userRole: string, userId?: number, limit: number = 20): Promise<RecentActivity[]> {
     try {
       const roleFilter = this.buildRoleFilter(userRole, userId);
       const leadsCondition = roleFilter.clause 

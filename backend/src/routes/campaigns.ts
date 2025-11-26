@@ -12,7 +12,7 @@ export function createCampaignsRoutes(pool: Pool, config: Config) {
     body: {
       name: string;
       agentId: string;
-      leadIds: string[];
+      leadIds: number[];
       campaignType?: 'voice_call' | 'sms' | 'whatsapp' | 'email';
       customMessage?: string;
       scheduledAt?: string;
@@ -47,11 +47,23 @@ export function createCampaignsRoutes(pool: Pool, config: Config) {
         });
       }
 
+      // Convert leadIds to numbers if they're strings
+      const parsedLeadIds = Array.isArray(leadIds) ? 
+        leadIds.map(id => typeof id === 'string' ? parseInt(id) : id).filter(id => !isNaN(id)) :
+        [];
+
+      if (parsedLeadIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Valid lead IDs are required",
+        });
+      }
+
       const result = await getCampaignService().createCampaign(
         tenantId,
         name,
         agentId,
-        leadIds,
+        parsedLeadIds,
         campaignType,
         customMessage,
         scheduledAt
@@ -115,7 +127,7 @@ export function createCampaignsRoutes(pool: Pool, config: Config) {
         }
 
         const result = await getCampaignService().getCampaign(
-          campaignId,
+          parseInt(campaignId),
           tenantId
         );
 
@@ -150,7 +162,7 @@ export function createCampaignsRoutes(pool: Pool, config: Config) {
         }
 
         const result = await getCampaignService().startCampaign(
-          campaignId,
+          parseInt(campaignId),
           tenantId
         );
 
@@ -185,7 +197,7 @@ export function createCampaignsRoutes(pool: Pool, config: Config) {
         }
 
         const result = await getCampaignService().pauseCampaign(
-          campaignId,
+          parseInt(campaignId),
           tenantId
         );
 
@@ -220,7 +232,7 @@ export function createCampaignsRoutes(pool: Pool, config: Config) {
         }
 
         const result = await getCampaignService().getCampaignCalls(
-          campaignId,
+          parseInt(campaignId),
           tenantId
         );
 

@@ -52,7 +52,7 @@ export class LeadRepository extends BaseRepository {
     super({ pool, client });
   }
 
-  async findById(id: string): Promise<Lead | null> {
+  async findById(id: number): Promise<Lead | null> {
     const result = await this.query<Lead>(
       'SELECT * FROM leads WHERE id = $1',
       [id]
@@ -60,7 +60,7 @@ export class LeadRepository extends BaseRepository {
     return result.rows[0] || null;
   }
 
-  async findByTenantId(tenantId: string, filters?: LeadFilters, limit?: number, offset?: number): Promise<Lead[]> {
+  async findByTenantId(tenantId: number, filters?: LeadFilters, limit?: number, offset?: number): Promise<Lead[]> {
     let query = 'SELECT * FROM leads WHERE tenant_id = $1';
     const params: any[] = [tenantId];
     let paramCount = 2;
@@ -110,7 +110,7 @@ export class LeadRepository extends BaseRepository {
     return result.rows;
   }
 
-  async findByAssignedUserId(assignedUserId: string, limit?: number, offset?: number): Promise<Lead[]> {
+  async findByAssignedUserId(assignedUserId: number, limit?: number, offset?: number): Promise<Lead[]> {
     let query = 'SELECT * FROM leads WHERE assigned_user_id = $1 ORDER BY created_at DESC';
     const params: any[] = [assignedUserId];
 
@@ -128,7 +128,7 @@ export class LeadRepository extends BaseRepository {
     return result.rows;
   }
 
-  async findByPhoneNumber(tenantId: string, phoneNumber: string): Promise<Lead | null> {
+  async findByPhoneNumber(tenantId: number, phoneNumber: string): Promise<Lead | null> {
     const result = await this.query<Lead>(
       'SELECT * FROM leads WHERE tenant_id = $1 AND phone_number = $2',
       [tenantId, phoneNumber]
@@ -190,7 +190,7 @@ export class LeadRepository extends BaseRepository {
     return result.rows;
   }
 
-  async update(id: string, leadData: UpdateLeadInput): Promise<Lead | null> {
+  async update(id: number, leadData: UpdateLeadInput): Promise<Lead | null> {
     const setClause: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
@@ -250,7 +250,7 @@ export class LeadRepository extends BaseRepository {
     return result.rows[0] || null;
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(id: number): Promise<boolean> {
     const result = await this.query(
       'DELETE FROM leads WHERE id = $1',
       [id]
@@ -258,7 +258,7 @@ export class LeadRepository extends BaseRepository {
     return result.rowCount! > 0;
   }
 
-  async deleteMany(ids: string[]): Promise<number> {
+  async deleteMany(ids: number[]): Promise<number> {
     if (ids.length === 0) return 0;
     
     const placeholders = ids.map((_, index) => `$${index + 1}`).join(', ');
@@ -269,7 +269,7 @@ export class LeadRepository extends BaseRepository {
     return result.rowCount || 0;
   }
 
-  async countByTenantId(tenantId: string, filters?: LeadFilters): Promise<number> {
+  async countByTenantId(tenantId: number, filters?: LeadFilters): Promise<number> {
     let query = 'SELECT COUNT(*) as count FROM leads WHERE tenant_id = $1';
     const params: any[] = [tenantId];
     let paramCount = 2;
@@ -307,7 +307,7 @@ export class LeadRepository extends BaseRepository {
     return parseInt(result.rows[0].count);
   }
 
-  async countByStatus(tenantId: string): Promise<{ status: string; count: number }[]> {
+  async countByStatus(tenantId: number): Promise<{ status: string; count: number }[]> {
     const result = await this.query(
       `SELECT status, COUNT(*) as count 
        FROM leads 

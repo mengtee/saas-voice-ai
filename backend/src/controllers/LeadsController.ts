@@ -15,7 +15,7 @@ export class LeadsController extends BaseController {
 
       const filters: LeadFilters = {};
       if (req.query.status) filters.status = req.query.status as string;
-      if (req.query.assigned_user_id) filters.assigned_user_id = req.query.assigned_user_id as string;
+      if (req.query.assigned_user_id) filters.assigned_user_id = parseInt(req.query.assigned_user_id as string);
       if (req.query.date_from) filters.date_from = req.query.date_from as string;
       if (req.query.date_to) filters.date_to = req.query.date_to as string;
       if (req.query.search) filters.search = req.query.search as string;
@@ -46,7 +46,7 @@ export class LeadsController extends BaseController {
       const { id } = req.params;
       const currentUser = this.getUserFromRequest(req);
 
-      const lead = await this.leadRepository.findById(id);
+      const lead = await this.leadRepository.findById(this.parseId(id));
       if (!lead) {
         this.sendNotFound(res, 'Lead not found');
         return;
@@ -114,7 +114,7 @@ export class LeadsController extends BaseController {
       const { name, phone_number, email, purpose, status, notes, assigned_user_id, date } = req.body;
       const currentUser = this.getUserFromRequest(req);
 
-      const existingLead = await this.leadRepository.findById(id);
+      const existingLead = await this.leadRepository.findById(this.parseId(id));
       if (!existingLead) {
         this.sendNotFound(res, 'Lead not found');
         return;
@@ -155,7 +155,7 @@ export class LeadsController extends BaseController {
         return;
       }
 
-      const updatedLead = await this.leadRepository.update(id, updateData);
+      const updatedLead = await this.leadRepository.update(this.parseId(id), updateData);
       if (!updatedLead) {
         this.sendNotFound(res, 'Lead not found');
         return;
@@ -174,7 +174,7 @@ export class LeadsController extends BaseController {
       const { id } = req.params;
       const currentUser = this.getUserFromRequest(req);
 
-      const existingLead = await this.leadRepository.findById(id);
+      const existingLead = await this.leadRepository.findById(this.parseId(id));
       if (!existingLead) {
         this.sendNotFound(res, 'Lead not found');
         return;
@@ -191,7 +191,7 @@ export class LeadsController extends BaseController {
         return;
       }
 
-      const deleted = await this.leadRepository.delete(id);
+      const deleted = await this.leadRepository.delete(this.parseId(id));
       if (!deleted) {
         this.sendNotFound(res, 'Lead not found');
         return;

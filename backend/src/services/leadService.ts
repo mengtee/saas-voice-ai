@@ -6,9 +6,9 @@ import fs from 'fs';
 
 // Lead interface for database operations
 interface Lead {
-  id?: string;
-  tenant_id: string;
-  assigned_user_id?: string;
+  id?: number;
+  tenant_id: number;
+  assigned_user_id?: number;
   date: string;
   name: string;
   phone_number: string;
@@ -49,7 +49,7 @@ export class LeadService extends BaseService {
    * Build role-based WHERE clause for lead queries
    * Admins see all tenant leads, agents see only their assigned leads
    */
-  private buildRoleFilter(userRole: string, userId?: string): { clause: string; params: string[] } {
+  private buildRoleFilter(userRole: string, userId?: number): { clause: string; params: any[] } {
     if (userRole === 'admin') {
       return { clause: '', params: [] };
     }
@@ -67,7 +67,7 @@ export class LeadService extends BaseService {
   /**
    * Upload leads from CSV or Excel file
    */
-  async uploadLeads(filePath: string, fileName: string, tenantId: string): Promise<UploadResult> {
+  async uploadLeads(filePath: string, fileName: string, tenantId: number): Promise<UploadResult> {
     const result: UploadResult = {
       success: false,
       imported: 0,
@@ -194,7 +194,7 @@ export class LeadService extends BaseService {
   /**
    * Validate and normalize lead data from CSV/Excel row
    */
-  private validateAndNormalizeLead(rowData: LeadRow, rowNumber: number, tenantId: string): Lead | null {
+  private validateAndNormalizeLead(rowData: LeadRow, rowNumber: number, tenantId: number): Lead | null {
     const errors: string[] = [];
 
     // Extract name (required)
@@ -306,7 +306,7 @@ export class LeadService extends BaseService {
   /**
    * Find existing lead by phone number within tenant
    */
-  private async findLeadByPhone(phoneNumber: string, tenantId: string): Promise<Lead | null> {
+  private async findLeadByPhone(phoneNumber: string, tenantId: number): Promise<Lead | null> {
     try {
       const result = await this.query<Lead>(
         'SELECT * FROM leads WHERE phone_number = $1 AND tenant_id = $2',
@@ -337,7 +337,7 @@ export class LeadService extends BaseService {
   /**
    * Update an existing lead with role-based access control
    */
-  async updateLead(leadId: string, updates: Partial<Lead>, tenantId: string, userRole: string, userId?: string): Promise<Lead> {
+  async updateLead(leadId: number, updates: Partial<Lead>, tenantId: number, userRole: string, userId?: number): Promise<Lead> {
     try {
       // Build query with role-based access check
       const roleFilter = this.buildRoleFilter(userRole, userId);
@@ -474,9 +474,9 @@ export class LeadService extends BaseService {
    * Supports role-based access: admins see all, agents see only their assigned leads
    */
   async getLeads(
-    tenantId: string, 
+    tenantId: number, 
     userRole: string,
-    userId?: string,
+    userId?: number,
     page: number = 1, 
     pageSize: number = 50, 
     search: string = '', 
@@ -552,7 +552,7 @@ export class LeadService extends BaseService {
   /**
    * Get a single lead by ID with role-based access control
    */
-  async getLeadById(leadId: string, tenantId: string, userRole: string, userId?: string): Promise<Lead | null> {
+  async getLeadById(leadId: number, tenantId: number, userRole: string, userId?: number): Promise<Lead | null> {
     const roleFilter = this.buildRoleFilter(userRole, userId);
     const query = roleFilter.clause 
       ? 'SELECT * FROM leads WHERE id = $1 AND tenant_id = $2 AND assigned_user_id = $3'
@@ -569,7 +569,7 @@ export class LeadService extends BaseService {
   /**
    * Delete a lead with role-based access control
    */
-  async deleteLead(leadId: string, tenantId: string, userRole: string, userId?: string): Promise<boolean> {
+  async deleteLead(leadId: number, tenantId: number, userRole: string, userId?: number): Promise<boolean> {
     // First check if lead exists and user has access
     const lead = await this.getLeadById(leadId, tenantId, userRole, userId);
     if (!lead) {
@@ -587,7 +587,7 @@ export class LeadService extends BaseService {
   /**
    * Get lead statistics for role-based access
    */
-  async getLeadStats(tenantId: string, userRole: string, userId?: string): Promise<{
+  async getLeadStats(tenantId: number, userRole: string, userId?: number): Promise<{
     total: number;
     pending: number;
     called: number;

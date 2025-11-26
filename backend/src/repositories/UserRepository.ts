@@ -134,10 +134,21 @@ export class UserRepository extends BaseRepository {
   }
 
   async updateLastLogin(id: number): Promise<void> {
-    await this.query(
-      'UPDATE users SET last_login = NOW() WHERE id = $1',
-      [id]
-    );
+    try {
+      // Try to update last_login if column exists, fail silently if not
+      await this.query(
+        'UPDATE users SET last_login = NOW() WHERE id = $1',
+        [id]
+      );
+    } catch (error: any) {
+      // If column doesn't exist (automation-backend compatibility), ignore the error
+      if (error.code === '42703') { // PostgreSQL error code for "column does not exist"
+        console.log('last_login column not found - skipping update (automation-backend compatibility)');
+        return;
+      }
+      // Re-throw other errors
+      throw error;
+    }
   }
 
   async countByTenantId(tenantId: number): Promise<number> {
