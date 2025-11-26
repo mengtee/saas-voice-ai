@@ -387,6 +387,28 @@ class ApiClient {
   }
 
   // Auth API
+  async register(
+    companyName: string,
+    name: string,
+    email: string,
+    password: string,
+    domain?: string
+  ): Promise<ApiResponse<{ 
+    token: string; 
+    user: unknown; 
+    tenant: unknown 
+  }>> {
+    return this.handleRequest(
+      this.client.post("/api/auth/register", {
+        companyName,
+        name,
+        email,
+        password,
+        domain
+      })
+    );
+  }
+
   async login(
     email: string,
     password: string

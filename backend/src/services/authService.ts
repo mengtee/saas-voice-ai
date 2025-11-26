@@ -2,11 +2,12 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Config } from '../config';
 import { UserRepository, User } from '../repositories/UserRepository';
+import { TenantRepository, Tenant } from '../repositories/TenantRepository';
 
 // JWT Payload - what gets stored inside the token
 interface JWTPayload {
-  userId: string;
-  tenantId: string;
+  userId: number;
+  tenantId: number;
   email: string;
   name: string;
   role: string;
@@ -17,10 +18,12 @@ interface JWTPayload {
 export class AuthService {
   private config: Config;
   private userRepository: UserRepository;
+  private tenantRepository: TenantRepository;
 
-  constructor(config: Config, userRepository: UserRepository) {
+  constructor(config: Config, userRepository: UserRepository, tenantRepository?: TenantRepository) {
     this.config = config;
     this.userRepository = userRepository;
+    this.tenantRepository = tenantRepository || new TenantRepository({ pool: userRepository['pool'] });
   }
 
   /**
@@ -124,7 +127,7 @@ export class AuthService {
   /**
    * Get user by ID - for API endpoints that need current user
    */
-  async getUserById(userId: string): Promise<Omit<User, 'password_hash'> | null> {
+  async getUserById(userId: number): Promise<Omit<User, 'password_hash'> | null> {
     try {
       const user = await this.userRepository.findById(userId);
       
@@ -149,7 +152,7 @@ export class AuthService {
     password: string;
     name: string;
     role: 'admin' | 'agent' | 'viewer';
-    tenantId: string;
+    tenantId: number;
   }): Promise<Omit<User, 'password_hash'>> {
     try {
       // Hash password before storing (matching seed.ts)
@@ -180,6 +183,93 @@ export class AuthService {
         throw error;
       }
       throw new Error('User creation failed');
+    }
+  }
+
+  /**
+   * Register new tenant with admin user
+   */
+  async register(registrationData: {
+    // Tenant data
+    companyName: string;
+    domain?: string;
+    // User data
+    name: string;
+    email: string;
+    password: string;
+  }): Promise<{ 
+    token: string; 
+    user: Omit<User, 'password_hash'>; 
+    tenant: Tenant 
+  }> {
+    try {
+      // Check if email already exists anywhere
+      const existingUser = await this.userRepository.findByEmail(registrationData.email);
+      if (existingUser) {
+        throw new Error('Email already exists');
+      }
+
+      // Generate unique slug for tenant
+      const slug = await this.tenantRepository.generateUniqueSlug(registrationData.companyName);
+
+      // Create tenant
+      const tenant = await this.tenantRepository.create({
+        name: registrationData.companyName,
+        slug,
+        domain: registrationData.domain,
+        settings: {
+          plan: 'free',
+          maxUsers: 5,
+          features: ['basic_calling', 'lead_management']
+        }
+      });
+
+      // Hash password
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(registrationData.password, saltRounds);
+
+      // Create admin user
+      const user = await this.userRepository.create({
+        tenant_id: tenant.id,
+        email: registrationData.email,
+        password_hash: hashedPassword,
+        name: registrationData.name,
+        role: 'admin'
+      });
+
+      // Generate JWT token
+      const tokenPayload: JWTPayload = {
+        userId: user.id,
+        tenantId: user.tenant_id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      };
+
+      const token = (jwt as any).sign(
+        tokenPayload,
+        this.config.jwtSecret,
+        { expiresIn: this.config.jwtExpiresIn }
+      );
+
+      // Update last login
+      await this.userRepository.updateLastLogin(user.id);
+
+      // Return registration result
+      const { password_hash, ...userWithoutPassword } = user;
+      
+      return {
+        token,
+        user: userWithoutPassword,
+        tenant
+      };
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      if (error instanceof Error && error.message === 'Email already exists') {
+        throw error;
+      }
+      throw new Error('Registration failed');
     }
   }
 }

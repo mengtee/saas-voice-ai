@@ -32,6 +32,50 @@ export class AuthController extends BaseController {
     }
   };
 
+  register = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { companyName, domain, name, email, password } = req.body;
+
+      const missingFields = this.validateRequired({ companyName, name, email, password });
+      if (missingFields.length > 0) {
+        this.sendError(res, `Missing required fields: ${missingFields.join(', ')}`);
+        return;
+      }
+
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        this.sendError(res, 'Invalid email format');
+        return;
+      }
+
+      // Basic password validation
+      if (password.length < 6) {
+        this.sendError(res, 'Password must be at least 6 characters long');
+        return;
+      }
+
+      const result = await this.authService.register({
+        companyName,
+        domain: domain || undefined,
+        name,
+        email,
+        password
+      });
+
+      this.sendCreated(res, result, 'Registration successful');
+
+    } catch (error: any) {
+      console.error('Registration controller error:', error);
+      
+      if (error.message === 'Email already exists') {
+        this.sendError(res, 'Email already exists');
+      } else {
+        this.sendInternalError(res, 'Registration failed');
+      }
+    }
+  };
+
   logout = async (req: Request, res: Response): Promise<void> => {
     try {
       this.sendSuccess(res, undefined, 'Logged out successfully');
@@ -129,7 +173,7 @@ export class AuthController extends BaseController {
       const { id } = req.params;
       const currentUser = this.getUserFromRequest(req);
 
-      const user = await this.userRepository.findById(id);
+      const user = await this.userRepository.findById(this.parseId(id));
       if (!user) {
         this.sendNotFound(res, 'User not found');
         return;
@@ -155,7 +199,7 @@ export class AuthController extends BaseController {
       const { email, name, role } = req.body;
       const currentUser = this.getUserFromRequest(req);
 
-      const existingUser = await this.userRepository.findById(id);
+      const existingUser = await this.userRepository.findById(this.parseId(id));
       if (!existingUser) {
         this.sendNotFound(res, 'User not found');
         return;
@@ -182,7 +226,7 @@ export class AuthController extends BaseController {
         return;
       }
 
-      const updatedUser = await this.userRepository.update(id, updateData);
+      const updatedUser = await this.userRepository.update(this.parseId(id), updateData);
       if (!updatedUser) {
         this.sendNotFound(res, 'User not found');
         return;
@@ -207,12 +251,12 @@ export class AuthController extends BaseController {
       const { id } = req.params;
       const currentUser = this.getUserFromRequest(req);
 
-      if (id === currentUser.id) {
+      if (this.parseId(id) === currentUser.id) {
         this.sendError(res, 'Cannot delete your own account');
         return;
       }
 
-      const existingUser = await this.userRepository.findById(id);
+      const existingUser = await this.userRepository.findById(this.parseId(id));
       if (!existingUser) {
         this.sendNotFound(res, 'User not found');
         return;
@@ -223,7 +267,7 @@ export class AuthController extends BaseController {
         return;
       }
 
-      const deleted = await this.userRepository.delete(id);
+      const deleted = await this.userRepository.delete(this.parseId(id));
       if (!deleted) {
         this.sendNotFound(res, 'User not found');
         return;

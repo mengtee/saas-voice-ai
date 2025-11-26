@@ -73,14 +73,22 @@ export abstract class BaseController {
     };
   }
 
-  protected getUserFromRequest(req: Request): { id: string; tenant_id: string; role: string } {
+  protected getUserFromRequest(req: Request): { id: number; tenant_id: number; role: string } {
     if (!req.user) {
       throw new Error('User not found in request');
     }
     return {
-      id: req.user.id,
-      tenant_id: req.user.tenant_id,
+      id: parseInt(req.user.id),
+      tenant_id: parseInt(req.user.tenant_id),
       role: req.user.role
     };
+  }
+
+  protected parseId(idStr: string): number {
+    const id = parseInt(idStr);
+    if (isNaN(id)) {
+      throw new Error('Invalid ID format');
+    }
+    return id;
   }
 }

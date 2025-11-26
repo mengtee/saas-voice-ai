@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
 import { apiClient } from '@/services/api';
 import { useAppStore } from '@/store';
 import { User } from '@/types';
@@ -224,7 +225,15 @@ export default function Login() {
               <div className="mt-6">
                 <Separator className="my-4" />
                 <div className="text-center text-sm text-muted-foreground">
-                  Need access? Contact your system administrator
+                  <div className="mb-3">
+                    Don't have an account?{" "}
+                    <Link href="/register" className="text-purple-600 hover:text-purple-800 font-medium underline">
+                      Sign up here
+                    </Link>
+                  </div>
+                  <div>
+                    Need access? Contact your system administrator
+                  </div>
                 </div>
               </div>
             </CardContent>

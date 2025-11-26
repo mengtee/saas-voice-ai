@@ -33,7 +33,7 @@ export class UserRepository extends BaseRepository {
     super({ pool, client });
   }
 
-  async findById(id: string): Promise<User | null> {
+  async findById(id: number): Promise<User | null> {
     const result = await this.query<User>(
       'SELECT * FROM users WHERE id = $1',
       [id]
@@ -49,7 +49,7 @@ export class UserRepository extends BaseRepository {
     return result.rows[0] || null;
   }
 
-  async findByTenantIdAndEmail(tenantId: string, email: string): Promise<User | null> {
+  async findByTenantIdAndEmail(tenantId: number, email: string): Promise<User | null> {
     const result = await this.query<User>(
       'SELECT * FROM users WHERE tenant_id = $1 AND email = $2',
       [tenantId, email]
@@ -57,7 +57,7 @@ export class UserRepository extends BaseRepository {
     return result.rows[0] || null;
   }
 
-  async findByTenantId(tenantId: string, limit?: number, offset?: number): Promise<User[]> {
+  async findByTenantId(tenantId: number, limit?: number, offset?: number): Promise<User[]> {
     let query = 'SELECT * FROM users WHERE tenant_id = $1 ORDER BY created_at DESC';
     const params: any[] = [tenantId];
 
@@ -85,7 +85,7 @@ export class UserRepository extends BaseRepository {
     return result.rows[0];
   }
 
-  async update(id: string, userData: UpdateUserInput): Promise<User | null> {
+  async update(id: number, userData: UpdateUserInput): Promise<User | null> {
     const setClause: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
@@ -125,7 +125,7 @@ export class UserRepository extends BaseRepository {
     return result.rows[0] || null;
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(id: number): Promise<boolean> {
     const result = await this.query(
       'DELETE FROM users WHERE id = $1',
       [id]
@@ -133,14 +133,14 @@ export class UserRepository extends BaseRepository {
     return result.rowCount! > 0;
   }
 
-  async updateLastLogin(id: string): Promise<void> {
+  async updateLastLogin(id: number): Promise<void> {
     await this.query(
       'UPDATE users SET last_login = NOW() WHERE id = $1',
       [id]
     );
   }
 
-  async countByTenantId(tenantId: string): Promise<number> {
+  async countByTenantId(tenantId: number): Promise<number> {
     const result = await this.query(
       'SELECT COUNT(*) as count FROM users WHERE tenant_id = $1',
       [tenantId]
@@ -148,7 +148,7 @@ export class UserRepository extends BaseRepository {
     return parseInt(result.rows[0].count);
   }
 
-  async findByRole(tenantId: string, role: 'admin' | 'agent' | 'viewer'): Promise<User[]> {
+  async findByRole(tenantId: number, role: 'admin' | 'agent' | 'viewer'): Promise<User[]> {
     const result = await this.query<User>(
       'SELECT * FROM users WHERE tenant_id = $1 AND role = $2 ORDER BY created_at DESC',
       [tenantId, role]
